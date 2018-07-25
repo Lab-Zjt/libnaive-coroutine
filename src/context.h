@@ -1,6 +1,7 @@
 #ifndef NAIVECORO_CONTEXT_H
 #define NAIVECORO_CONTEXT_H
 
+#include "scheduler.h"
 #include "manager.h"
 #include <ucontext.h>
 #include <functional>
@@ -29,20 +30,24 @@ public:
     getcontext(ucp);
     ucp->uc_stack.ss_sp = new char[8192];
     ucp->uc_stack.ss_size = 8192;
+    auto mng = Scheduler::getCurrentManager();
     if (mng == nullptr) {
       ucp->uc_link = nullptr;
     } else {
+      printf("set uc_link at %p\n", mng->main()->ucp);
       ucp->uc_link = mng->main()->ucp;
     }
     fp_to_ctx[&fn] = this;
     makecontext(ucp, helper(ucontext_helper), 1, &fn);
   };
   void resume(Context *from);
+  void setlink(ucontext_t *uc_link);
+  ucontext_t *ucontext() {return ucp;}
 };
 
 template<typename Func, typename ...ARGS>
 void go(Func &&func, ARGS &&...args) {
-  mng->push(new Context(std::forward<Func>(func), args...));
+  _scheduler->push_func(std::bind(func, args...));
 };
 
 #endif

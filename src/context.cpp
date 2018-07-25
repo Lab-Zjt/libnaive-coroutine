@@ -1,10 +1,9 @@
 #include "context.h"
 
 std::map<std::function<void()> *, Context *> fp_to_ctx;
-
 void Context::ucontext_helper(std::function<void()> *pf) {
   (*pf)();
-  mng->erase(fp_to_ctx[pf]);
+  Scheduler::getCurrentManager()->erase(fp_to_ctx[pf]);
 }
 Context::~Context() {
   if (ucp != nullptr) {
@@ -18,4 +17,7 @@ void Context::resume(Context *from) {
   } else {
     swapcontext(from->ucp, ucp);
   }
+}
+void Context::setlink(ucontext_t *uc_link) {
+  ucp->uc_link = uc_link;
 }

@@ -3,11 +3,14 @@
 
 #include <list>
 #include <vector>
+#include <atomic>
+#include <zconf.h>
+#include <functional>
+#include <mutex>
 
 class Context;
 
 class Timer;
-
 
 class ContextManager {
 private:
@@ -16,16 +19,31 @@ private:
   Context *cur;
   std::vector<Context *> waiting_for_erase;
   Timer *timer;
+  std::vector<std::function<void()>> queue;
+  int signo;
 public:
-  ContextManager();
-  void push(Context *context) {CtxQueue.push_back(context);}
+  ContextManager(int index);
+  void push(Context *context) {
+    std::lock_guard<std::mutex> lock(mtx);
+    CtxQueue.push_back(context);
+  }
+  void push_to_queue(std::function<void()> &&func) {
+    std::lock_guard<std::mutex> lock(mtx);
+    queue.emplace_back(func);
+  }
+  void queue_to_ctx();
+  std::mutex mtx;
   void start();
+  std::atomic<bool> empty;
+  pthread_t tid;
+  bool running;
+  void setmask();
   void erase(Context *ctx);
   Context *main() {return manager;}
+  Context *current() {return cur;}
   static void alarm(int signo);
-  static void manage();
+  void manage();
+  void setSignal();
 };
-
-extern ContextManager *mng;
 
 #endif
