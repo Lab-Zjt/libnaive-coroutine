@@ -15,7 +15,8 @@ void ContextManager::set_signal_handler() {
 void ContextManager::alarm(int sig) {
   auto mng = Scheduler::get_current_manager();
   if (sig == mng->signo()) {
-    if (mng->_cur->status() == Context::Status::syscalling) {
+    //should not swap context when it is syscalling or IOblocking(IOblocking is a special syscalling status)
+    if (mng->_cur->status() == Context::Status::syscalling || mng->_cur->status() == Context::Status::IOblocking) {
       return;
     }
     mng->_cur->set_status(Context::Status::ready);
@@ -49,6 +50,7 @@ void ContextManager::manage() {
       for (auto it = _context_list.begin(); it != _context_list.end();) {
         auto ctx = *it;
         if (ctx->status() == Context::Status::ready) {
+          //context status would become ready when it creates or swap to manager by signal.
           ctx->set_status(Context::Status::running);
           //printf("%d switch to running.\n", _sig - 40);
           _status = Status::running;
@@ -60,9 +62,21 @@ void ContextManager::manage() {
           _status = Status::signal_handling;
           ++it;
         } else if (ctx->status() == Context::Status::IOblocking) {
+          //when context call a I/O block function, context status would become IOblocking
           ++it;
         } else if (ctx->status() == Context::Status::finished) {
+          //when context function exit, context status would become finished.
           it = _context_list.erase(it);
+        } else if (ctx->status() == Context::Status::syscalling) {
+          //context status become syscalling when it call I/O block function, it would be added to epoll, when epoll return, context status would become syscalling.
+          _status = Status::running;
+          _cur = ctx;
+          _timer->start();
+          ctx->resume(_manager);
+          _timer->stop();
+          _cur = nullptr;
+          _status = Status::signal_handling;
+          ++it;
         }
       }
     }

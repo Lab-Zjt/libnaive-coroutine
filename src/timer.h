@@ -12,7 +12,6 @@
 #define SIG_TM_8 58
 #define SIG_TM_9 59
 
-
 struct itimerspec;
 struct sigevent;
 struct itimerval;
@@ -29,7 +28,7 @@ private:
   itimerspec *_zero;
 public:
   ~Timer();
-  Timer(int s, int ns,int tid,ContextManager* mng);
+  Timer(int s, int ns, int tid, ContextManager *mng);
   void start();
   void stop();
   void restart();

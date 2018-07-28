@@ -26,6 +26,7 @@ private:
   Timer *_timer;
   std::vector<std::function<void()>> _queue;
   int _sig;
+  int _epfd;
   pthread_t _tid;
   Status _status;
 public:
@@ -37,6 +38,7 @@ public:
   inline void set_status(Status st) {_status = st;}
   inline Context *manager() {return _manager;}
   inline Context *current() {return _cur;}
+  inline int epfd(){return _epfd;}
   void push_to_queue(std::function<void()> &&func);
   void fetch_from_queue();
   void start();

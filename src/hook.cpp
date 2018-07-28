@@ -5,12 +5,19 @@
 #include <dlfcn.h>
 #include <ucontext.h>
 #include <sys/epoll.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 extern "C" {
 void *libc = nullptr;
 read_t origin_read = nullptr;
 write_t origin_write = nullptr;
+open_t origin_open = nullptr;
 close_t origin_close = nullptr;
+socket_t origin_socket = nullptr;
+connect_t origin_connect = nullptr;
+bind_t origin_bind = nullptr;
+listen_t origin_listen = nullptr;
 accept_t origin_accept = nullptr;
 printf_t origin_printf = nullptr;
 static int counter = 0;
@@ -21,13 +28,216 @@ void hook_all() {
   }
   origin_read = read_t(dlsym(libc, "read"));
   origin_write = write_t(dlsym(libc, "write"));
+  origin_open = open_t(dlsym(libc, "open"));
   origin_close = close_t(dlsym(libc, "close"));
+  origin_socket = socket_t(dlsym(libc, "socket"));
+  origin_connect = connect_t(dlsym(libc, "connect"));
+  origin_bind = bind_t(dlsym(libc, "bind"));
+  origin_listen = listen_t(dlsym(libc, "listen"));
   origin_accept = accept_t(dlsym(libc, "accept"));
   origin_printf = printf_t(dlsym(libc, "printf"));
-  if (origin_read == nullptr || origin_write == nullptr || origin_accept == nullptr || origin_close == nullptr ||
-      origin_printf == nullptr) {
+  if (origin_read == nullptr || origin_write == nullptr || origin_open == nullptr || origin_close == nullptr ||
+      origin_socket == nullptr || origin_connect == nullptr || origin_bind == nullptr || origin_listen == nullptr ||
+      origin_accept == nullptr || origin_printf == nullptr) {
     _exit(-1);
   }
+}
+ssize_t read(int fd, void *buf, size_t count) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_read(fd, buf, count);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_read(fd, buf, count);
+  }
+  cur->set_status(Context::Status::syscalling);
+  ssize_t res;
+  struct stat stat_buf{};
+  fstat(fd, &stat_buf);
+  if (S_ISREG(stat_buf.st_mode)) {
+    res = origin_read(fd, buf, count);
+  } else {
+    epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.ptr = cur;
+    epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
+    cur->set_status(Context::Status::IOblocking);
+    mng->manager()->resume(cur);
+    res = origin_read(fd, buf, count);
+    epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
+  }
+  mng->current()->set_status(Context::Status::running);
+  return res;
+}
+ssize_t write(int fd, const void *buf, size_t count) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_write(fd, buf, count);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_write(fd, buf, count);
+  }
+  cur->set_status(Context::Status::syscalling);
+  ssize_t res;
+  struct stat statbuf{};
+  fstat(fd, &statbuf);
+  if (S_ISREG(statbuf.st_mode)) {
+    res = origin_write(fd, buf, count);
+  } else {
+    epoll_event ev{};
+    ev.events = EPOLLOUT;
+    ev.data.ptr = cur;
+    epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
+    cur->set_status(Context::Status::IOblocking);
+    mng->manager()->resume(cur);
+    res = origin_write(fd, buf, count);
+    epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
+  }
+  mng->current()->set_status(Context::Status::running);
+  return res;
+}
+int open(const char *pathname, int flags, ...) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    if ((unsigned) flags & (unsigned) O_CREAT) {
+      va_list vl;
+      va_start(vl, flags);
+      mode_t mode = va_arg(vl, mode_t);
+      va_end(vl);
+      return origin_open(pathname, flags, mode);
+    }
+    return origin_open(pathname, flags);
+  } else {
+    auto cur = mng->current();
+    if (cur == nullptr) {
+      if ((unsigned) flags & (unsigned) O_CREAT) {
+        va_list vl;
+        va_start(vl, flags);
+        mode_t mode = va_arg(vl, mode_t);
+        va_end(vl);
+        return origin_open(pathname, flags, mode);
+      }
+      return origin_open(pathname, flags);
+    } else {
+      cur->set_status(Context::Status::syscalling);
+      int fd;
+      if ((unsigned) flags & (unsigned) O_CREAT) {
+        va_list vl;
+        va_start(vl, flags);
+        mode_t mode = va_arg(vl, mode_t);
+        va_end(vl);
+        fd = origin_open(pathname, flags, mode);
+      } else {
+        fd = origin_open(pathname, flags);
+      }
+      cur->set_status(Context::Status::running);
+      return fd;
+    }
+  }
+}
+int close(int fd) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_close(fd);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_close(fd);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = origin_close(fd);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+int socket(int domain, int type, int protocol) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_socket(domain, type, protocol);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_socket(domain, type, protocol);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = origin_socket(domain, type, protocol);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_connect(sockfd, addr, addrlen);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_connect(sockfd, addr, addrlen);
+  }
+  cur->set_status(Context::Status::syscalling);
+  int old_option = fcntl(sockfd, F_GETFL);
+  fcntl(sockfd, F_SETFL, (unsigned) old_option | (unsigned) O_NONBLOCK);
+  auto res = origin_connect(sockfd, addr, addrlen);
+  if (errno == EINPROGRESS) {
+    epoll_event ev{};
+    ev.events = EPOLLIN | EPOLLOUT;
+    ev.data.ptr = cur;
+    epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
+    cur->set_status(Context::Status::IOblocking);
+    mng->manager()->resume(cur);
+    epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
+  }
+  fcntl(sockfd, F_SETFL, old_option);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_bind(sockfd, addr, addrlen);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_bind(sockfd, addr, addrlen);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = origin_bind(sockfd, addr, addrlen);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+int listen(int sockfd, int backlog) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_listen(sockfd, backlog);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_listen(sockfd, backlog);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = origin_listen(sockfd, backlog);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_accept(sockfd, addr, addrlen);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_accept(sockfd, addr, addrlen);
+  }
+  cur->set_status(Context::Status::syscalling);
+  epoll_event ev{};
+  ev.events = EPOLLIN;
+  ev.data.ptr = cur;
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
+  cur->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(cur);
+  int fd = origin_accept(sockfd, addr, addrlen);
+  cur->set_status(Context::Status::running);
+  return fd;
 }
 int printf(const char *format, ...) {
   auto mng = Scheduler::get_current_manager();
@@ -54,56 +264,5 @@ int printf(const char *format, ...) {
     }
   }
   return res;
-}
-ssize_t read(int fd, void *buf, size_t count) {
-  auto mng = Scheduler::get_current_manager();
-  if (mng == nullptr) {
-    return origin_read(fd, buf, count);
-  }
-  auto cur = mng->current();
-  if (cur == nullptr) {
-    return origin_read(fd, buf, count);
-  }
-  mng->current()->set_status(Context::Status::syscalling);
-  auto res = origin_read(fd, buf, count);
-  mng->current()->set_status(Context::Status::running);
-  return res;
-}
-ssize_t write(int fd, const void *buf, size_t count) {
-  auto mng = Scheduler::get_current_manager();
-  if (mng == nullptr) {
-    return origin_write(fd, buf, count);
-  }
-  auto cur = mng->current();
-  if (cur == nullptr) {
-    return origin_write(fd, buf, count);
-  }
-  mng->current()->set_status(Context::Status::syscalling);
-  auto res = origin_write(fd, buf, count);
-  mng->current()->set_status(Context::Status::running);
-  return res;
-}
-int close(int fd) {
-  /*auto &ctx = soranet::FdCtx[fd];
-  if (ctx == nullptr) {
-    return origin_close(fd);
-  }
-  auto loop = soranet::getCurrentLoop();
-  loop->_stack_list.push_back((char *) ctx->uc_stack.ss_sp);
-  loop->_ucp_list.push_back(ctx);
-  ctx = nullptr;*/
-  return origin_close(fd);
-}
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
-  int fd = origin_accept(sockfd, addr, addrlen);
-  /*if (fd < 0) {
-    return fd;
-  }
-  auto &ctx = soranet::FdCtx[fd];
-  ctx = new ucontext_t;
-  getcontext(ctx);
-  ctx->uc_stack.ss_sp = new char[8192];
-  ctx->uc_stack.ss_size = 8192;*/
-  return fd;
 }
 }
