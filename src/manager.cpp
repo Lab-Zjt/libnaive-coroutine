@@ -6,68 +6,65 @@
 #include <zconf.h>
 #include <cstring>
 
-ContextManager::ContextManager(int index) : empty(true), running(false), signo(40 + index) {
-  manager = new Context(&ContextManager::manage, this);
+ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating) {
+  _manager = new Context(1024 * 1024, &ContextManager::manage, this);
 }
-void ContextManager::setSignal() {
-  signal(signo, ContextManager::alarm);
+void ContextManager::set_signal_handler() {
+  signal(_sig, ContextManager::alarm);
 }
-void ContextManager::alarm(int signo) {
-  auto mng = Scheduler::getCurrentManager();
-  if (signo == mng->signo) {
-    if (mng->cur->status == Context::Status::syscalling) {
+void ContextManager::alarm(int sig) {
+  auto mng = Scheduler::get_current_manager();
+  if (sig == mng->signo()) {
+    if (mng->_cur->status() == Context::Status::syscalling) {
       return;
     }
-    mng->cur->status = Context::Status::ready;
-    mng->manager->resume(mng->cur);
+    mng->_cur->set_status(Context::Status::ready);
+    mng->_manager->resume(mng->_cur);
   }
 }
 void ContextManager::start() {
-  timer = new Timer(0, 5000000, signo, this);
-  manager->resume(nullptr);
+  _timer = new Timer(0, 5000000, _sig, this);
+  _manager->resume(nullptr);
 }
-void ContextManager::erase(Context *ctx) {
-  waiting_for_erase.push_back(ctx);
-}
-void ContextManager::queue_to_ctx() {
-  std::lock_guard<std::mutex> lock(mtx);
-  for (auto &it:queue) {
-    CtxQueue.emplace_back(new Context(it));
+void ContextManager::fetch_from_queue() {
+  std::lock_guard<std::mutex> lock(_mtx);
+  for (auto &it:_queue) {
+    _context_list.emplace_back(new Context(it));
   }
-  queue.clear();
+  _queue.clear();
+}
+void ContextManager::push_to_queue(std::function<void()> &&func) {
+  std::lock_guard<std::mutex> lock(_mtx);
+  _queue.emplace_back(func);
 }
 void ContextManager::manage() {
   while (true) {
-    queue_to_ctx();
-    if (CtxQueue.empty()) {
-      printf("%d switch to ready.\n", signo - 40);
-      status = Status::ready;
+    fetch_from_queue();
+    if (_context_list.empty()) {
+      //printf("%d switch to ready.\n", _sig - 40);
+      _status = Status::ready;
       usleep(100);
     } else {
-      empty = false;
-      printf("%lu task in %d\n", CtxQueue.size(), signo - 40);
-      int i = 0;
-      for (auto it = CtxQueue.begin(); it != CtxQueue.end();) {
+      //printf("%lu task in %d\n", _context_list.size(), _sig - 40);
+      for (auto it = _context_list.begin(); it != _context_list.end();) {
         auto ctx = *it;
-        if (ctx->status == Context::Status::ready) {
-          ctx->status = Context::Status::running;
-          printf("%d switch to running.\n", signo - 40);
-          this->status = Status::running;
-          this->cur = ctx;
-          timer->start();
-          ctx->resume(manager);
-          timer->stop();
-          this->cur = nullptr;
+        if (ctx->status() == Context::Status::ready) {
+          ctx->set_status(Context::Status::running);
+          //printf("%d switch to running.\n", _sig - 40);
+          _status = Status::running;
+          _cur = ctx;
+          _timer->start();
+          ctx->resume(_manager);
+          _timer->stop();
+          _cur = nullptr;
+          _status = Status::signal_handling;
           ++it;
-        } else if (ctx->status == Context::Status::IOblocking) {
+        } else if (ctx->status() == Context::Status::IOblocking) {
           ++it;
-          continue;
-        } else if (ctx->status == Context::Status::finished) {
-          it = CtxQueue.erase(it);
-          continue;
+        } else if (ctx->status() == Context::Status::finished) {
+          it = _context_list.erase(it);
         }
       }
     }
   }
-  printf("I break...\n");
 }

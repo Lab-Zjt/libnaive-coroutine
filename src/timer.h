@@ -22,11 +22,11 @@ class ContextManager;
 
 class Timer {
 private:
-  itimerspec *tv;
-  sigevent *sig;
-  timer_t timerid;
-  itimerspec *old;
-  itimerspec *zero;
+  itimerspec *_tv;
+  sigevent *_sig;
+  timer_t _timerid;
+  itimerspec *_old;
+  itimerspec *_zero;
 public:
   ~Timer();
   Timer(int s, int ns,int tid,ContextManager* mng);

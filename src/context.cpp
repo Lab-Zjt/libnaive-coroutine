@@ -5,21 +5,18 @@ void Context::ucontext_helper(int fn_ptr1, int fn_ptr2, int this_ptr1, int this_
   auto pf = reinterpret_cast<std::function<void()> *>(makeptr(fn_ptr1, fn_ptr2));
   auto ctx = reinterpret_cast<Context *>(makeptr(this_ptr1, this_ptr2));
   (*pf)();
-  ctx->status = Context::Status::finished;
+  ctx->set_status(Context::Status::finished);
 }
 Context::~Context() {
-  if (ucp != nullptr) {
-    delete[]char_p(ucp->uc_stack.ss_sp);
+  if (_ucp != nullptr) {
+    delete[]char_p(_ucp->uc_stack.ss_sp);
   }
-  delete ucp;
+  delete _ucp;
 }
 void Context::resume(Context *from) {
   if (from == nullptr) {
-    setcontext(ucp);
+    setcontext(_ucp);
   } else {
-    swapcontext(from->ucp, ucp);
+    swapcontext(from->_ucp, _ucp);
   }
-}
-void Context::setlink(ucontext_t *uc_link) {
-  ucp->uc_link = uc_link;
 }

@@ -19,43 +19,59 @@ p1 = (int)(((p)>>32)&0x00000000ffffffff)
 const int kStackSize = 32768;
 
 class Context {
+public:
   typedef char *char_p;
+  typedef void(*helper)();
+  enum class Status {
+    running, ready, IOblocking, finished, syscalling
+  };
 private:
-  ucontext_t *ucp = nullptr;
-  std::function<void()> fn;
-  int fn_ptr[2];
-  int this_ptr[2];
+  ucontext_t *_ucp = nullptr;
+  std::function<void()> _fn;
+  int _fn_ptr[2];
+  int _this_ptr[2];
+  Status _status = Status::ready;
   static void ucontext_helper(int fn_ptr1, int fn_ptr2, int this_ptr1, int this_ptr2);
 public:
-  enum class Status {
-    running, ready, IOblocking, finished,syscalling
-  };
-  Status status = Status::ready;
-  typedef void(*helper)();
   Context() = default;
   ~Context();
+  //Create manager context.
+  template<typename Func, typename ...ARGS>
+  Context(int stack_size, Func &&func, ARGS &&...args) : _fn(std::bind(func, args...)) {
+    divptr(reinterpret_cast<std::intptr_t>(&_fn), _fn_ptr[0], _fn_ptr[1]);
+    divptr(reinterpret_cast<std::intptr_t>(this), _this_ptr[0], _this_ptr[1]);
+    _ucp = new ucontext_t;
+    getcontext(_ucp);
+    _ucp->uc_stack.ss_sp = new char[stack_size];
+    _ucp->uc_stack.ss_size = stack_size;
+    auto mng = Scheduler::get_current_manager();
+    if (mng == nullptr) {
+      _ucp->uc_link = nullptr;
+    } else {
+      _ucp->uc_link = mng->manager()->_ucp;
+    }
+    makecontext(_ucp, helper(ucontext_helper), 4, _fn_ptr[0], _fn_ptr[1], _this_ptr[0], _this_ptr[1]);
+  };
   template<typename Func, typename ...ARGS>
   explicit Context(Func &&func, ARGS &&...args) :
-    fn(std::bind(func, args...)) {
-    divptr(reinterpret_cast<std::intptr_t>(&fn), fn_ptr[0], fn_ptr[1]);
-    divptr(reinterpret_cast<std::intptr_t>(this), this_ptr[0], this_ptr[1]);
-    ucp = new ucontext_t;
-    getcontext(ucp);
-    ucp->uc_stack.ss_sp = new char[32768];
-    ucp->uc_stack.ss_size = 32768;
-    auto mng = Scheduler::getCurrentManager();
+    _fn(std::bind(func, args...)) {
+    divptr(reinterpret_cast<std::intptr_t>(&_fn), _fn_ptr[0], _fn_ptr[1]);
+    divptr(reinterpret_cast<std::intptr_t>(this), _this_ptr[0], _this_ptr[1]);
+    _ucp = new ucontext_t;
+    getcontext(_ucp);
+    _ucp->uc_stack.ss_sp = new char[kStackSize];
+    _ucp->uc_stack.ss_size = kStackSize;
+    auto mng = Scheduler::get_current_manager();
     if (mng == nullptr) {
-      ucp->uc_link = nullptr;
+      _ucp->uc_link = nullptr;
     } else {
-      printf("set uc_link at %p\n", mng->main()->ucp);
-      ucp->uc_link = mng->main()->ucp;
+      _ucp->uc_link = mng->manager()->_ucp;
     }
-    fp_to_ctx[&fn] = this;
-    makecontext(ucp, helper(ucontext_helper), 4, fn_ptr[0], fn_ptr[1], this_ptr[0], this_ptr[1]);
+    makecontext(_ucp, helper(ucontext_helper), 4, _fn_ptr[0], _fn_ptr[1], _this_ptr[0], _this_ptr[1]);
   };
   void resume(Context *from);
-  void setlink(ucontext_t *uc_link);
-  ucontext_t *ucontext() {return ucp;}
+  inline Status status() {return _status;}
+  inline void set_status(Status st) {_status = st;}
 };
 
 template<typename Func, typename ...ARGS>

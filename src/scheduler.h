@@ -10,21 +10,18 @@ class ContextManager;
 
 class Context;
 
-constexpr int maxThread = 7;
+constexpr int max_thread = 7;
 
 class Scheduler {
   typedef int(*main_t)(int, char *[]);
-  ContextManager *manager[maxThread];
-  pthread_t id[maxThread];
-  std::atomic<int> index;
-  bool initializing = true;
+  ContextManager *_manager[max_thread];
+  pthread_t _id[max_thread];
+  std::atomic<int> _index;
+  bool _initializing;
 public:
-  std::atomic<int> task_count;
   Scheduler();
-  std::mutex mtx;
-  void push_task(Context *ctx);
-  void push_main(main_t cmain, int argc, char *argv[]);
-  static ContextManager *getCurrentManager();
+  //std::mutex mtx;
+  static ContextManager *get_current_manager();
   void start(main_t cmain, int argc, char *argv[]);
   void init();
   bool empty();

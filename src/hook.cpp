@@ -30,7 +30,7 @@ void hook_all() {
   }
 }
 int printf(const char *format, ...) {
-  auto mng = Scheduler::getCurrentManager();
+  auto mng = Scheduler::get_current_manager();
   int res;
   if (mng == nullptr) {
     va_list vl;
@@ -45,28 +45,42 @@ int printf(const char *format, ...) {
       res = vfprintf(stdout, format, vl);
       va_end(vl);
     } else {
-      cur->status = Context::Status::syscalling;
+      cur->set_status(Context::Status::syscalling);
       va_list vl;
       va_start(vl, format);
       res = vfprintf(stdout, format, vl);
       va_end(vl);
-      cur->status = Context::Status::running;
+      cur->set_status(Context::Status::running);
     }
   }
   return res;
 }
 ssize_t read(int fd, void *buf, size_t count) {
-  auto mng = Scheduler::getCurrentManager();
-  mng->current()->status = Context::Status::syscalling;
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_read(fd, buf, count);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_read(fd, buf, count);
+  }
+  mng->current()->set_status(Context::Status::syscalling);
   auto res = origin_read(fd, buf, count);
-  mng->current()->status = Context::Status::running;
+  mng->current()->set_status(Context::Status::running);
   return res;
 }
 ssize_t write(int fd, const void *buf, size_t count) {
-  auto mng = Scheduler::getCurrentManager();
-  mng->current()->status = Context::Status::syscalling;
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_write(fd, buf, count);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_write(fd, buf, count);
+  }
+  mng->current()->set_status(Context::Status::syscalling);
   auto res = origin_write(fd, buf, count);
-  mng->current()->status = Context::Status::running;
+  mng->current()->set_status(Context::Status::running);
   return res;
 }
 int close(int fd) {

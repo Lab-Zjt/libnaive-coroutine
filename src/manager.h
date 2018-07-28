@@ -14,42 +14,35 @@ class Timer;
 class ContextManager {
 public:
   enum class Status {
-    signal_handling, ready, running,creating
+    signal_handling, ready, running, creating
   };
   typedef ContextManager *pointer;
   typedef ContextManager &reference;
 private:
-  std::list<Context *> CtxQueue;
-  Context *manager;
-  Context *cur;
-  std::vector<Context *> waiting_for_erase;
-  Timer *timer;
-  std::vector<std::function<void()>> queue;
+  std::list<Context *> _context_list;
+  Context *_manager;
+  Context *_cur;
+  std::mutex _mtx;
+  Timer *_timer;
+  std::vector<std::function<void()>> _queue;
+  int _sig;
+  pthread_t _tid;
+  Status _status;
 public:
-  int signo;
-  Status status = Status::creating;
-  bool avalible = true;
-  ContextManager(int index);
-  void push(Context *context) {
-    std::lock_guard<std::mutex> lock(mtx);
-    CtxQueue.push_back(context);
-  }
-  void push_to_queue(std::function<void()> &&func) {
-    std::lock_guard<std::mutex> lock(mtx);
-    queue.emplace_back(func);
-  }
-  void queue_to_ctx();
-  std::mutex mtx;
+  explicit ContextManager(int index);
+  inline int signo() {return _sig;}
+  inline pthread_t tid() {return _tid;}
+  inline void set_tid(pthread_t t) {_tid = t;}
+  inline Status status() {return _status;}
+  inline void set_status(Status st) {_status = st;}
+  inline Context *manager() {return _manager;}
+  inline Context *current() {return _cur;}
+  void push_to_queue(std::function<void()> &&func);
+  void fetch_from_queue();
   void start();
-  std::atomic<bool> empty;
-  pthread_t tid;
-  bool running;
-  void erase(Context *ctx);
-  Context *main() {return manager;}
-  Context *current() {return cur;}
-  static void alarm(int signo);
   void manage();
-  void setSignal();
+  void set_signal_handler();
+  static void alarm(int sig);
 };
 
 #endif
