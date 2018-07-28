@@ -16,5 +16,5 @@ int main(int argc,char* argv[]){\
   return 0;\
 }
 
-#define Coro_Main() Main();\
+#define Coro_Main(argc,argv) Main();\
 int coro_main(int argc, char *argv[])
