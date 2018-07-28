@@ -1,4 +1,5 @@
 #include "timer.h"
+#include "manager.h"
 #include <ctime>
 #include <cstring>
 #include <csignal>
@@ -8,7 +9,7 @@
 #include <bits/types/siginfo_t.h>
 #include <pthread.h>
 
-Timer::Timer(int s, int ns, int signo) {
+Timer::Timer(int s, int ns, int signo,ContextManager* mng) {
   tv = new itimerspec;
   tv->it_value.tv_sec = s;
   tv->it_value.tv_nsec = ns;
@@ -20,9 +21,9 @@ Timer::Timer(int s, int ns, int signo) {
   sig = new sigevent;
   memset(sig, 0, sizeof(sigevent));
   sig->sigev_notify = SIGEV_SIGNAL;
-  sig->sigev_signo = signo + 10;
+  sig->sigev_signo = SIGVTALRM;
   fprintf(stderr, "thread %lu is %d\n", pthread_self(), signo - 40);
-  sig->sigev_value.sival_ptr = (void *) (pthread_self());
+  sig->sigev_value.sival_ptr = mng;
   if (-1 == timer_create(CLOCK_THREAD_CPUTIME_ID, sig, &timerid)) {
     perror("timer_create");
   }

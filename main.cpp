@@ -31,11 +31,11 @@ void func4(std::uint64_t max) {
       printf("func4: %lu\n", sum);
     }
   }
-  go(func1,1000000000);
+  go(func1, 100000000);
 }
 Coro_Main() {
-  go(func1, 1000000000);
-  go(func2, 1500000000);
+  go(func1, 100000000);
+  go(func2, 150000000);
   go([](std::uint64_t max) {
     std::uint64_t sum = 0;
     for (int i = 0; i < max; ++i) {
@@ -44,8 +44,12 @@ Coro_Main() {
         printf("func3: %lu\n", sum);
       }
     }
-  }, 1000000000);
+  }, 100000000);
   go([]() {
-    func4(1000000000);
+    func4(100000000);
   });
+  go(func2, 100000000);
+  go(func1, 100000000);
+  go(func2, 100000000);
+  go(func1, 100000000);
 }

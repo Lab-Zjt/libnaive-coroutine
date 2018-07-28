@@ -1,9 +1,11 @@
 #include "context.h"
 
 std::map<std::function<void()> *, Context *> fp_to_ctx;
-void Context::ucontext_helper(std::function<void()> *pf) {
+void Context::ucontext_helper(int fn_ptr1, int fn_ptr2, int this_ptr1, int this_ptr2) {
+  auto pf = reinterpret_cast<std::function<void()> *>(makeptr(fn_ptr1, fn_ptr2));
+  auto ctx = reinterpret_cast<Context *>(makeptr(this_ptr1, this_ptr2));
   (*pf)();
-  Scheduler::getCurrentManager()->erase(fp_to_ctx[pf]);
+  ctx->status = Context::Status::finished;
 }
 Context::~Context() {
   if (ucp != nullptr) {

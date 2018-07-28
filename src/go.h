@@ -9,9 +9,7 @@ int coro_main(int argc, char *argv[]);
 int main(int argc,char* argv[]){\
   sigset_t ss;\
   sigemptyset(&ss);\
-  for (int i = 50; i < 60; ++i) {\
-    sigaddset(&ss, i);\
-  }\
+  sigaddset(&ss,SIGVTALRM);\
   pthread_sigmask(SIG_BLOCK, &ss, nullptr);\
   _scheduler = new Scheduler;\
   _scheduler->start(coro_main,argc,argv);\

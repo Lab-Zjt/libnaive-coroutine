@@ -7,27 +7,23 @@
 #include <cstring>
 
 ContextManager::ContextManager(int index) : empty(true), running(false), signo(40 + index) {
-  perror("signal");
-  fprintf(stderr, "%d:sig%d\n", index, signo);
   manager = new Context(&ContextManager::manage, this);
 }
 void ContextManager::setSignal() {
   signal(signo, ContextManager::alarm);
 }
-void ContextManager::setmask() {
-  sigset_t ss;
-  sigfillset(&ss);
-  sigdelset(&ss, signo);
-  pthread_sigmask(SIG_BLOCK, &ss, nullptr);
-}
 void ContextManager::alarm(int signo) {
   auto mng = Scheduler::getCurrentManager();
   if (signo == mng->signo) {
+    if (mng->cur->status == Context::Status::syscalling) {
+      return;
+    }
+    mng->cur->status = Context::Status::ready;
     mng->manager->resume(mng->cur);
   }
 }
 void ContextManager::start() {
-  timer = new Timer(0, 5000, signo);
+  timer = new Timer(0, 5000000, signo, this);
   manager->resume(nullptr);
 }
 void ContextManager::erase(Context *ctx) {
@@ -44,29 +40,33 @@ void ContextManager::manage() {
   while (true) {
     queue_to_ctx();
     if (CtxQueue.empty()) {
-      empty = true;
-      usleep(10);
+      printf("%d switch to ready.\n", signo - 40);
+      status = Status::ready;
+      usleep(100);
     } else {
       empty = false;
-      fprintf(stderr, "%lu task in %d\n", CtxQueue.size(), signo - 40);
-      timer->start();
-      for (auto it = CtxQueue.begin(); it != CtxQueue.end(); ++it) {
-        cur = *it;
-        cur->resume(manager);
-      }
+      printf("%lu task in %d\n", CtxQueue.size(), signo - 40);
       int i = 0;
-      timer->stop();
-      for (auto it = CtxQueue.begin(); it != CtxQueue.end() && i < waiting_for_erase.size();) {
-        if (*it == waiting_for_erase[i]) {
-          delete *it;
-          ++i;
+      for (auto it = CtxQueue.begin(); it != CtxQueue.end();) {
+        auto ctx = *it;
+        if (ctx->status == Context::Status::ready) {
+          ctx->status = Context::Status::running;
+          printf("%d switch to running.\n", signo - 40);
+          this->status = Status::running;
+          this->cur = ctx;
+          timer->start();
+          ctx->resume(manager);
+          timer->stop();
+          this->cur = nullptr;
+          ++it;
+        } else if (ctx->status == Context::Status::IOblocking) {
+          ++it;
+          continue;
+        } else if (ctx->status == Context::Status::finished) {
           it = CtxQueue.erase(it);
           continue;
-        } else {
-          ++it;
         }
       }
-      waiting_for_erase.clear();
     }
   }
   printf("I break...\n");

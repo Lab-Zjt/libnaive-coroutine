@@ -18,6 +18,8 @@ struct sigevent;
 struct itimerval;
 typedef void *timer_t;
 
+class ContextManager;
+
 class Timer {
 private:
   itimerspec *tv;
@@ -27,7 +29,7 @@ private:
   itimerspec *zero;
 public:
   ~Timer();
-  Timer(int s, int ns,int tid);
+  Timer(int s, int ns,int tid,ContextManager* mng);
   void start();
   void stop();
   void restart();

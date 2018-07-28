@@ -51,17 +51,17 @@ void Scheduler::push_func(std::function<void()> &&func) {
   if (index >= maxThread) {
     index = 0;
   }
-  mng->empty = false;
-  if (!mng->running) {
-    std::thread([mng, this](std::function<void()> &&fn) {
+  if (mng->status == ContextManager::Status::creating) {
+    mng->status = ContextManager::Status::signal_handling;
+    std::thread([mng, this](std::function<void()> fn) {
       mtx.unlock();
-      mng->running = true;
       mng->push_to_queue(std::move(fn));
       mng->setSignal();
       mng->tid = pthread_self();
       mng->start();
-    }, std::move(func)).detach();
+    }, func).detach();
   } else {
+    mtx.unlock();
     mng->push_to_queue(std::move(func));
   }
 }
@@ -82,31 +82,38 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   //push_main(cmain, argc, argv);
   push_func(std::bind(cmain, argc, argv));
   int sig;
-  timespec tv;
+  timespec tv{};
   tv.tv_sec = 0;
-  tv.tv_nsec = 10000;
+  tv.tv_nsec = 10000000;
   siginfo_t st;
   sigset_t ss;
   sigfillset(&ss);
+  //sigaddset(&ss, SIGVTALRM);
   while (true) {
     if ((sig = sigtimedwait(&ss, &st, &tv)) < 0) {
       //if no timer is running, check if all queue is empty, if empty, then exit.
       if (errno == EAGAIN) {
         if (empty()) {
+          printf("all queue is empty\n");
           exit(0);
         }
       }
     } else {
-      pthread_kill(pthread_t(st._sifields._timer.si_sigval.sival_ptr), sig - 10);
+      //if manager is running, set status to signal-handling and send signal
+      auto mng = ContextManager::pointer(st._sifields._timer.si_sigval.sival_ptr);
+      if (mng->status == ContextManager::Status::running) {
+        printf("send signal %d to %lu\n", mng->signo, mng->tid);
+        printf("%d switch to signal-handling.\n", mng->signo - 40);
+        mng->status = ContextManager::Status::signal_handling;
+        pthread_kill(mng->tid, mng->signo);
+      }
     }
   }
 }
 bool Scheduler::empty() {
   for (int i = 0; i < maxThread; ++i) {
-    if (!manager[i]->running) {
-      break;
-    }
-    if (!manager[i]->empty) {
+    if (manager[i]->status == ContextManager::Status::running ||
+        manager[i]->status == ContextManager::Status::signal_handling) {
       return false;
     }
   }

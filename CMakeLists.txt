@@ -3,10 +3,12 @@ project(naive_coro)
 
 set(CMAKE_CXX_STANDARD 11)
 
-FILE(GLOB CORO_LIB "src/*.cpp")
+include_directories(src)
 
-add_library(coro ${CORO_LIB})
+add_library(hook SHARED src/hook.cpp)
+
+add_library(coro SHARED src/manager.cpp src/scheduler.cpp src/timer.cpp src/context.cpp)
 
 add_executable(naive_coro main.cpp)
 
-target_link_libraries(naive_coro coro)
+target_link_libraries(naive_coro hook coro librt.so libpthread.so libdl.so)

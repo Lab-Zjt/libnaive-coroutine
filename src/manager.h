@@ -4,7 +4,6 @@
 #include <list>
 #include <vector>
 #include <atomic>
-#include <zconf.h>
 #include <functional>
 #include <mutex>
 
@@ -13,6 +12,12 @@ class Context;
 class Timer;
 
 class ContextManager {
+public:
+  enum class Status {
+    signal_handling, ready, running,creating
+  };
+  typedef ContextManager *pointer;
+  typedef ContextManager &reference;
 private:
   std::list<Context *> CtxQueue;
   Context *manager;
@@ -20,8 +25,10 @@ private:
   std::vector<Context *> waiting_for_erase;
   Timer *timer;
   std::vector<std::function<void()>> queue;
-  int signo;
 public:
+  int signo;
+  Status status = Status::creating;
+  bool avalible = true;
   ContextManager(int index);
   void push(Context *context) {
     std::lock_guard<std::mutex> lock(mtx);
@@ -37,7 +44,6 @@ public:
   std::atomic<bool> empty;
   pthread_t tid;
   bool running;
-  void setmask();
   void erase(Context *ctx);
   Context *main() {return manager;}
   Context *current() {return cur;}
