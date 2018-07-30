@@ -15,7 +15,6 @@ void func(int index) {
     free(ptr);
     printf("func %d free %d bytes.\n", index, 64 * 1024 * 1024);
   }
-  
 }
 Coro_Main(argc, argv) {
   go(func, 0);

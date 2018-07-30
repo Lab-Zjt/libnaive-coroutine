@@ -43,7 +43,7 @@ void ContextManager::alarm(int sig) {
   }
 }
 void ContextManager::start() {
-  _timer = new Timer(0, 1, _sig, this);
+  _timer = new Timer(0, 1000, _sig, this);
   _manager->resume(nullptr);
 }
 void ContextManager::fetch_from_queue() {
