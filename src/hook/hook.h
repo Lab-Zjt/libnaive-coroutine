@@ -29,9 +29,9 @@ extern listen_t origin_listen;
 extern accept_t origin_accept;
 extern printf_t origin_printf;
 extern malloc_t origin_malloc;
-void hook_all() __attribute__((constructor(101)));
-void init_hook();
+void hook_all() __attribute__((constructor(110)));
 void *__wrap_malloc(size_t size);
+void __wrap_free(void *ptr);
 };
 
 #endif

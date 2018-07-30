@@ -3,7 +3,6 @@
 #include "context.h"
 #include <unistd.h>
 #include <csignal>
-#include <bits/types/siginfo_t.h>
 
 Scheduler *_scheduler = nullptr;
 Scheduler::Scheduler() : _index(0), _initializing(true) {}
@@ -25,13 +24,13 @@ void Scheduler::push_func(std::function<void()> &&func) {
   if (mng->status() == ContextManager::Status::creating) {
     mng->set_status(ContextManager::Status::signal_handling);
     //if func pass by reference may cause some problem, although I'm not sure the problem is caused by pass by reference.
-    std::thread([mng](std::function<void()> fn) {
+    std::thread([mng](std::function<void()> &&fn) {
       //mtx.unlock();
       mng->push_to_queue(std::move(fn));
       mng->set_signal_handler();
       mng->set_tid(pthread_self());
       mng->start();
-    }, func).detach();
+    }, std::move(func)).detach();
   } else {
     //mtx.unlock();
     mng->push_to_queue(std::move(func));
@@ -58,10 +57,10 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   //TODO : I didn't find a appropriate time slice length, so I hard code it now.
   timespec tv{};
   tv.tv_sec = 0;
-  tv.tv_nsec = 1000000;
+  tv.tv_nsec = 500000;
   siginfo_t st;
   sigset_t ss;
-  sigaddset(&ss,SIGVTALRM);
+  sigaddset(&ss, SIGVTALRM);
   while (true) {
     //wait signal.
     if ((sig = sigtimedwait(&ss, &st, &tv)) < 0) {
@@ -70,7 +69,6 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
         //if not capture any signal, check queue is empty or not.
         //if empty, it means all task is finished, exit.
         if (empty()) {
-          //printf("all queue is empty\n");
           exit(0);
         }
       }
@@ -78,8 +76,6 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
       //if manager is running, set status to signal-handling and send signal.
       auto mng = ContextManager::pointer(st._sifields._timer.si_sigval.sival_ptr);
       if (mng->status() == ContextManager::Status::running) {
-        //printf("send signal %d to %lu\n", mng->signo, mng->tid);
-        //printf("%d switch to signal-handling.\n", mng->signo - 40);
         mng->set_status(ContextManager::Status::signal_handling);
         pthread_kill(mng->tid(), mng->signo());
       }

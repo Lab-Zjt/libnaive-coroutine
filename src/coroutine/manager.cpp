@@ -9,7 +9,7 @@
 
 ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating), _max_event(16),
   _event_list(16) {
-  _manager = new Context(1024 * 1024, &ContextManager::manage, this);
+  _manager = new Context(std::bind(&ContextManager::manage, this), 1024 * 1024);
   _epfd = epoll_create(1024);
   if (_epfd == -1) {
     perror("epoll_create");
@@ -43,36 +43,36 @@ void ContextManager::alarm(int sig) {
   }
 }
 void ContextManager::start() {
-  _timer = new Timer(0, 5000, _sig, this);
+  _timer = new Timer(0, 1, _sig, this);
   _manager->resume(nullptr);
 }
 void ContextManager::fetch_from_queue() {
   std::lock_guard<std::mutex> lock(_mtx);
   for (auto &it:_queue) {
-    _context_list.emplace_back(new Context(it));
+    _context_list.push_back(new Context(std::move(it)));
   }
   _queue.clear();
 }
 void ContextManager::push_to_queue(std::function<void()> &&func) {
   std::lock_guard<std::mutex> lock(_mtx);
-  _queue.emplace_back(func);
+  _queue.emplace_back(std::move(func));
 }
 void ContextManager::manage() {
   while (true) {
     epoll();
     fetch_from_queue();
     if (_context_list.empty()) {
-      //printf("%d switch to ready.\n", _sig - 40);
       _status = Status::ready;
-      usleep(100);
+      usleep(500);
     } else {
-      //printf("%lu task in %d\n", _context_list.size(), _sig - 40);
+      //done : if all coroutine is I/O blocking, sleep 500us (it's totally... hard code).
+      int done = 0;
       for (auto it = _context_list.begin(); it != _context_list.end();) {
         auto ctx = *it;
         if (ctx->status() == Context::Status::ready) {
+          done++;
           //context status would become ready when it creates or swap to manager by signal.
           ctx->set_status(Context::Status::running);
-          //printf("%d switch to running.\n", _sig - 40);
           _status = Status::running;
           _cur = ctx;
           _timer->start();
@@ -86,8 +86,10 @@ void ContextManager::manage() {
           ++it;
         } else if (ctx->status() == Context::Status::finished) {
           //when context function exit, context status would become finished.
+          delete (*it);
           it = _context_list.erase(it);
         } else if (ctx->status() == Context::Status::syscalling) {
+          done++;
           //context status become syscalling when it call I/O block function, it would be added to epoll, when epoll return, context status would become syscalling.
           _status = Status::running;
           _cur = ctx;
@@ -97,6 +99,9 @@ void ContextManager::manage() {
           _cur = nullptr;
           _status = Status::signal_handling;
           ++it;
+        }
+        if (done == 0) {
+          usleep(500);
         }
       }
     }

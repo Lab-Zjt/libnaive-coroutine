@@ -5,12 +5,13 @@
 #include <functional>
 #include <atomic>
 #include <mutex>
+#include "manager.h"
 
 class ContextManager;
 
 class Context;
 
-constexpr int max_thread = 2;
+constexpr int max_thread = 7;
 
 class Scheduler {
   typedef int(*main_t)(int, char *[]);

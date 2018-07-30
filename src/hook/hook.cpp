@@ -1,7 +1,7 @@
 #include "hook.h"
-#include "scheduler.h"
-#include "manager.h"
-#include "context.h"
+#include "coroutine/scheduler.h"
+#include "coroutine/manager.h"
+#include "coroutine/context.h"
 #include <dlfcn.h>
 #include <ucontext.h>
 #include <sys/epoll.h>
@@ -51,11 +51,15 @@ ssize_t read(int fd, void *buf, size_t count) {
     return origin_read(fd, buf, count);
   }
   cur->set_status(Context::Status::syscalling);
-  ssize_t res;
+  ssize_t res = 0;
   struct stat stat_buf{};
   fstat(fd, &stat_buf);
   if (S_ISREG(stat_buf.st_mode)) {
-    res = origin_read(fd, buf, count);
+    while (res != count) {
+      auto realsize = origin_read(fd, buf + res, count - res);
+      if (realsize == 0 | realsize == -1) break;
+      res += realsize;
+    }
   } else {
     epoll_event ev{};
     ev.events = EPOLLIN;
@@ -63,10 +67,15 @@ ssize_t read(int fd, void *buf, size_t count) {
     epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
     cur->set_status(Context::Status::IOblocking);
     mng->manager()->resume(cur);
-    res = origin_read(fd, buf, count);
+    res = 0;
+    while (res != count) {
+      auto realsize = origin_read(fd, buf + res, count - res);
+      if (realsize == 0 | realsize == -1) break;
+      res += realsize;
+    }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  mng->current()->set_status(Context::Status::running);
+  cur->set_status(Context::Status::running);
   return res;
 }
 ssize_t write(int fd, const void *buf, size_t count) {
@@ -79,11 +88,15 @@ ssize_t write(int fd, const void *buf, size_t count) {
     return origin_write(fd, buf, count);
   }
   cur->set_status(Context::Status::syscalling);
-  ssize_t res;
-  struct stat statbuf{};
-  fstat(fd, &statbuf);
-  if (S_ISREG(statbuf.st_mode)) {
-    res = origin_write(fd, buf, count);
+  struct stat stat_buf{};
+  fstat(fd, &stat_buf);
+  ssize_t res = 0;
+  if (S_ISREG(stat_buf.st_mode)) {
+    while (res != count) {
+      auto realsize = origin_write(fd, buf + res, count - res);
+      if (realsize == 0 | realsize == -1) break;
+      res += realsize;
+    }
   } else {
     epoll_event ev{};
     ev.events = EPOLLOUT;
@@ -91,10 +104,15 @@ ssize_t write(int fd, const void *buf, size_t count) {
     epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
     cur->set_status(Context::Status::IOblocking);
     mng->manager()->resume(cur);
-    res = origin_write(fd, buf, count);
+    res = 0;
+    while (res != count) {
+      auto realsize = ::origin_write(fd, buf + res, count - res);
+      if (realsize == 0 | realsize == -1) break;
+      res += realsize;
+    }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  mng->current()->set_status(Context::Status::running);
+  cur->set_status(Context::Status::running);
   return res;
 }
 int open(const char *pathname, int flags, ...) {
@@ -235,6 +253,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   cur->set_status(Context::Status::IOblocking);
   mng->manager()->resume(cur);
   int fd = origin_accept(sockfd, addr, addrlen);
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
   cur->set_status(Context::Status::running);
   return fd;
 }
@@ -285,4 +304,71 @@ void *__wrap_malloc(size_t size) {
   cur->set_status(Context::Status::running);
   return res;
 }
+void __real_free(void *ptr);
+void __wrap_free(void *ptr) {
+  if (_scheduler == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  if (_scheduler->initializing()) {
+    __real_free(ptr);
+    return;
+  }
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  cur->set_status(Context::Status::syscalling);
+  __real_free(ptr);
+  cur->set_status(Context::Status::running);
+}
+}
+void *operator new(size_t size) {
+  if (_scheduler == nullptr) {
+    return __real_malloc(size);
+  }
+  if (_scheduler->initializing()) {
+    return __real_malloc(size);
+  }
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return __real_malloc(size);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return __real_malloc(size);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = __real_malloc(size);
+  cur->set_status(Context::Status::running);
+  return res;
+}
+void operator delete(void *ptr) {
+  if (_scheduler == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  if (_scheduler->initializing()) {
+    __real_free(ptr);
+    return;
+  }
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    __real_free(ptr);
+    return;
+  }
+  cur->set_status(Context::Status::syscalling);
+  __real_free(ptr);
+  cur->set_status(Context::Status::running);
 }

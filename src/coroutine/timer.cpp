@@ -22,7 +22,6 @@ Timer::Timer(int s, int ns, int signo,ContextManager* mng) {
   memset(_sig, 0, sizeof(sigevent));
   _sig->sigev_notify = SIGEV_SIGNAL;
   _sig->sigev_signo = SIGVTALRM;
-  //fprintf(stderr, "thread %lu is %d\n", pthread_self(), signo - 40);
   _sig->sigev_value.sival_ptr = mng;
   if (-1 == timer_create(CLOCK_THREAD_CPUTIME_ID, _sig, &_timerid)) {
     perror("timer_create");
