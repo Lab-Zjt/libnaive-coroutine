@@ -5,9 +5,27 @@
 #include <csignal>
 #include <zconf.h>
 #include <cstring>
+#include <sys/epoll.h>
 
-ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating) {
+ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating), _max_event(16),
+  _event_list(16) {
   _manager = new Context(1024 * 1024, &ContextManager::manage, this);
+  _epfd = epoll_create(1024);
+  if (_epfd == -1) {
+    perror("epoll_create");
+    exit(-1);
+  }
+}
+void ContextManager::epoll() {
+  auto ready_count = epoll_wait(_epfd, _event_list.data(), _max_event, 0);
+  if (ready_count == _max_event) {
+    _max_event *= 2;
+    _event_list.reserve(unsigned(_max_event));
+  }
+  for (int i = 0; i < ready_count; ++i) {
+    auto ctx = Context::pointer(_event_list[i].data.ptr);
+    ctx->set_status(Context::Status::syscalling);
+  }
 }
 void ContextManager::set_signal_handler() {
   signal(_sig, ContextManager::alarm);
@@ -16,7 +34,8 @@ void ContextManager::alarm(int sig) {
   auto mng = Scheduler::get_current_manager();
   if (sig == mng->signo()) {
     //should not swap context when it is syscalling or IOblocking(IOblocking is a special syscalling status)
-    if (mng->_cur->status() == Context::Status::syscalling || mng->_cur->status() == Context::Status::IOblocking) {
+    if (mng->_cur->status() == Context::Status::syscalling || mng->_cur->status() == Context::Status::IOblocking ||
+        mng->_cur->status() == Context::Status::finished) {
       return;
     }
     mng->_cur->set_status(Context::Status::ready);
@@ -24,7 +43,7 @@ void ContextManager::alarm(int sig) {
   }
 }
 void ContextManager::start() {
-  _timer = new Timer(0, 5000000, _sig, this);
+  _timer = new Timer(0, 5000, _sig, this);
   _manager->resume(nullptr);
 }
 void ContextManager::fetch_from_queue() {
@@ -40,6 +59,7 @@ void ContextManager::push_to_queue(std::function<void()> &&func) {
 }
 void ContextManager::manage() {
   while (true) {
+    epoll();
     fetch_from_queue();
     if (_context_list.empty()) {
       //printf("%d switch to ready.\n", _sig - 40);

@@ -34,6 +34,7 @@ void func4(std::uint64_t max) {
   go(func1, 100000000);
 }
 Coro_Main(argc, argv) {
+  std::cout << "hello,world" << std::endl;
   go(func1, 100000000);
   go(func2, 150000000);
   go([](std::uint64_t max) {

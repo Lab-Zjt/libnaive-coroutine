@@ -2,6 +2,7 @@
 #define SORANET_HOOK_H
 
 #include <zconf.h>
+#include <malloc.h>
 
 struct sockaddr;
 
@@ -16,6 +17,7 @@ typedef int (*bind_t)(int sockfd, const struct sockaddr *addr, socklen_t addrlen
 typedef int (*listen_t)(int sockfd, int backlog);
 typedef int (*accept_t)(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 typedef int (*printf_t)(const char *format, ...);
+typedef void *(*malloc_t)(size_t size);
 extern read_t origin_read;
 extern write_t origin_write;
 extern open_t origin_open;
@@ -26,7 +28,10 @@ extern bind_t origin_bind;
 extern listen_t origin_listen;
 extern accept_t origin_accept;
 extern printf_t origin_printf;
+extern malloc_t origin_malloc;
 void hook_all() __attribute__((constructor(101)));
+void init_hook();
+void *__wrap_malloc(size_t size);
 };
 
 #endif

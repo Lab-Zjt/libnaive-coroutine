@@ -21,6 +21,8 @@ const int kStackSize = 32768;
 class Context {
 public:
   typedef char *char_p;
+  typedef Context *pointer;
+  typedef Context &reference;
   typedef void(*helper)();
   enum class Status {
     running, ready, IOblocking, finished, syscalling

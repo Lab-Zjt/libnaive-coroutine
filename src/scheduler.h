@@ -10,7 +10,7 @@ class ContextManager;
 
 class Context;
 
-constexpr int max_thread = 7;
+constexpr int max_thread = 2;
 
 class Scheduler {
   typedef int(*main_t)(int, char *[]);
@@ -25,7 +25,8 @@ public:
   void start(main_t cmain, int argc, char *argv[]);
   void init();
   bool empty();
-  void push_func(std::function<void()>&& func);
+  bool initializing() {return _initializing;}
+  void push_func(std::function<void()> &&func);
 };
 
 extern Scheduler *_scheduler;

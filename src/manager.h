@@ -11,6 +11,8 @@ class Context;
 
 class Timer;
 
+struct epoll_event;
+
 class ContextManager {
 public:
   enum class Status {
@@ -29,6 +31,8 @@ private:
   int _epfd;
   pthread_t _tid;
   Status _status;
+  std::vector<epoll_event> _event_list;
+  int _max_event;
 public:
   explicit ContextManager(int index);
   inline int signo() {return _sig;}
@@ -38,12 +42,13 @@ public:
   inline void set_status(Status st) {_status = st;}
   inline Context *manager() {return _manager;}
   inline Context *current() {return _cur;}
-  inline int epfd(){return _epfd;}
+  inline int epfd() {return _epfd;}
   void push_to_queue(std::function<void()> &&func);
   void fetch_from_queue();
   void start();
   void manage();
   void set_signal_handler();
+  void epoll();
   static void alarm(int sig);
 };
 

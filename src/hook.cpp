@@ -20,7 +20,6 @@ bind_t origin_bind = nullptr;
 listen_t origin_listen = nullptr;
 accept_t origin_accept = nullptr;
 printf_t origin_printf = nullptr;
-static int counter = 0;
 void hook_all() {
   libc = dlopen("libc.so.6", RTLD_LAZY);
   if (libc == nullptr) {
@@ -263,6 +262,27 @@ int printf(const char *format, ...) {
       cur->set_status(Context::Status::running);
     }
   }
+  return res;
+}
+void *__real_malloc(size_t size);
+void *__wrap_malloc(size_t size) {
+  if (_scheduler == nullptr) {
+    return __real_malloc(size);
+  }
+  if (_scheduler->initializing()) {
+    return __real_malloc(size);
+  }
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return __real_malloc(size);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return __real_malloc(size);
+  }
+  cur->set_status(Context::Status::syscalling);
+  auto res = __real_malloc(size);
+  cur->set_status(Context::Status::running);
   return res;
 }
 }
