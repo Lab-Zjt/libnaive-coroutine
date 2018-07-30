@@ -37,6 +37,9 @@ void Scheduler::push_func(std::function<void()> &&func) {
   }
 }
 ContextManager *Scheduler::get_current_manager() {
+  if (_scheduler == nullptr) {
+    return nullptr;
+  }
   if (_scheduler->_initializing) {
     return nullptr;
   }

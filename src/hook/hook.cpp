@@ -20,6 +20,8 @@ bind_t origin_bind = nullptr;
 listen_t origin_listen = nullptr;
 accept_t origin_accept = nullptr;
 printf_t origin_printf = nullptr;
+malloc_t origin_malloc = nullptr;
+free_t origin_free = nullptr;
 void hook_all() {
   libc = dlopen("libc.so.6", RTLD_LAZY);
   if (libc == nullptr) {
@@ -35,10 +37,11 @@ void hook_all() {
   origin_listen = listen_t(dlsym(libc, "listen"));
   origin_accept = accept_t(dlsym(libc, "accept"));
   origin_printf = printf_t(dlsym(libc, "printf"));
+  origin_free = free_t(dlsym(libc, "free"));
   if (origin_read == nullptr || origin_write == nullptr || origin_open == nullptr || origin_close == nullptr ||
       origin_socket == nullptr || origin_connect == nullptr || origin_bind == nullptr || origin_listen == nullptr ||
-      origin_accept == nullptr || origin_printf == nullptr) {
-    _exit(-1);
+      origin_accept == nullptr || origin_printf == nullptr || origin_free == nullptr) {
+    exit(-1);
   }
 }
 ssize_t read(int fd, void *buf, size_t count) {
@@ -283,92 +286,59 @@ int printf(const char *format, ...) {
   }
   return res;
 }
-void *__real_malloc(size_t size);
-void *__wrap_malloc(size_t size) {
-  if (_scheduler == nullptr) {
-    return __real_malloc(size);
+void hook_malloc() {
+  auto libc = dlopen("libc.so.6", RTLD_LAZY);
+  if (libc == nullptr) {
+    exit(1);
   }
-  if (_scheduler->initializing()) {
-    return __real_malloc(size);
+  origin_malloc = malloc_t(dlsym(libc, "malloc"));
+  dlclose(libc);
+}
+char malloc_buf[1024];
+int buf_pos = 0;
+void *malloc(size_t size) {
+  static bool is_hooking = false;
+  if (origin_malloc == nullptr) {
+    if (!is_hooking) {
+      is_hooking = true;
+      hook_malloc();
+      is_hooking = false;
+    } else {
+      if (buf_pos + size < 1024) {
+        void *ptr = malloc_buf + buf_pos;
+        buf_pos += size;
+        return ptr;
+      } else {
+        exit(2);
+      }
+    }
   }
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
-    return __real_malloc(size);
+    return origin_malloc(size);
   }
   auto cur = mng->current();
   if (cur == nullptr) {
-    return __real_malloc(size);
+    return origin_malloc(size);
   }
   cur->set_status(Context::Status::syscalling);
-  auto res = __real_malloc(size);
+  auto res = origin_malloc(size);
   cur->set_status(Context::Status::running);
   return res;
 }
-void __real_free(void *ptr);
-void __wrap_free(void *ptr) {
-  if (_scheduler == nullptr) {
-    __real_free(ptr);
-    return;
-  }
-  if (_scheduler->initializing()) {
-    __real_free(ptr);
-    return;
-  }
+void free(void *ptr) {
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
-    __real_free(ptr);
+    origin_free(ptr);
     return;
   }
   auto cur = mng->current();
   if (cur == nullptr) {
-    __real_free(ptr);
+    origin_free(ptr);
     return;
   }
   cur->set_status(Context::Status::syscalling);
-  __real_free(ptr);
+  origin_free(ptr);
   cur->set_status(Context::Status::running);
 }
-}
-void *operator new(size_t size) {
-  if (_scheduler == nullptr) {
-    return __real_malloc(size);
-  }
-  if (_scheduler->initializing()) {
-    return __real_malloc(size);
-  }
-  auto mng = Scheduler::get_current_manager();
-  if (mng == nullptr) {
-    return __real_malloc(size);
-  }
-  auto cur = mng->current();
-  if (cur == nullptr) {
-    return __real_malloc(size);
-  }
-  cur->set_status(Context::Status::syscalling);
-  auto res = __real_malloc(size);
-  cur->set_status(Context::Status::running);
-  return res;
-}
-void operator delete(void *ptr) {
-  if (_scheduler == nullptr) {
-    __real_free(ptr);
-    return;
-  }
-  if (_scheduler->initializing()) {
-    __real_free(ptr);
-    return;
-  }
-  auto mng = Scheduler::get_current_manager();
-  if (mng == nullptr) {
-    __real_free(ptr);
-    return;
-  }
-  auto cur = mng->current();
-  if (cur == nullptr) {
-    __real_free(ptr);
-    return;
-  }
-  cur->set_status(Context::Status::syscalling);
-  __real_free(ptr);
-  cur->set_status(Context::Status::running);
 }

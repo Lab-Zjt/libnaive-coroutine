@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.10)
 project(coronet)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "-Wl,-wrap,malloc -Wl,-wrap,free")
 
 include_directories(src)
 file(GLOB SORA_NET_SRC src/net/*.cpp)
