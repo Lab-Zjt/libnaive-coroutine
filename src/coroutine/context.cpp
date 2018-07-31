@@ -19,6 +19,7 @@ Context::Context(std::function<void()> &&fn, size_t stack_size) : _fn(std::move(
   } else {
     _ucp->uc_link = mng->manager()->_ucp;
   }
+  _status = Status::ready;
   makecontext(_ucp, helper(ucontext_helper), 4, _fn_ptr[0], _fn_ptr[1], _this_ptr[0], _this_ptr[1]);
 }
 Context::~Context() {

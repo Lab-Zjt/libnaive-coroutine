@@ -25,6 +25,7 @@ private:
   Context *_manager;
   Context *_cur;
   std::mutex _mtx;
+  std::mutex _wake_up_mtx;
   Timer *_timer;
   std::vector<std::function<void()>> _queue;
   int _sig;
@@ -33,6 +34,7 @@ private:
   Status _status;
   std::vector<epoll_event> _event_list;
   int _max_event;
+  int _evfd;
 public:
   explicit ContextManager(int index);
   inline int signo() {return _sig;}
@@ -49,6 +51,8 @@ public:
   void manage();
   void set_signal_handler();
   void epoll();
+  void no_task_epoll();
+  void wake_up();
   static void alarm(int sig);
 };
 

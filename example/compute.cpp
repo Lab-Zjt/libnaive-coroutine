@@ -2,6 +2,7 @@
 #include <cassert>
 #include <zconf.h>
 #include <thread>
+#include <omp.h>
 #include <iostream>
 #include <syscall.h>
 

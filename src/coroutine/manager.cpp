@@ -6,15 +6,22 @@
 #include <zconf.h>
 #include <cstring>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
+#include <hook/hook.h>
 
 ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating), _max_event(16),
   _event_list(16) {
   _manager = new Context(std::bind(&ContextManager::manage, this), 1024 * 1024);
   _epfd = epoll_create(1024);
+  _evfd = eventfd(0, 0);
   if (_epfd == -1) {
     perror("epoll_create");
     exit(-1);
   }
+  epoll_event ev{};
+  ev.data.ptr = this;
+  ev.events = EPOLLIN;
+  epoll_ctl(_epfd, EPOLL_CTL_ADD, _evfd, &ev);
 }
 void ContextManager::epoll() {
   auto ready_count = epoll_wait(_epfd, _event_list.data(), _max_event, 0);
@@ -23,8 +30,24 @@ void ContextManager::epoll() {
     _event_list.reserve(unsigned(_max_event));
   }
   for (int i = 0; i < ready_count; ++i) {
-    auto ctx = Context::pointer(_event_list[i].data.ptr);
-    ctx->set_status(Context::Status::syscalling);
+    static_cast<Context::pointer >(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
+  }
+}
+std::uint64_t ev_buf = 0;
+void ContextManager::no_task_epoll() {
+  auto ready_count = epoll_wait(_epfd, _event_list.data(), _max_event, -1);
+  for (int i = 0; i < ready_count; ++i) {
+    if (_event_list[i].data.ptr == this) {
+      ::read(_evfd, &ev_buf, sizeof(ev_buf));
+    } else {
+      static_cast<Context::pointer>(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
+    }
+  }
+}
+void ContextManager::wake_up() {
+  if (_wake_up_mtx.try_lock()) {
+    ::origin_write(_evfd, &ev_buf, sizeof(ev_buf));
+    _wake_up_mtx.unlock();
   }
 }
 void ContextManager::set_signal_handler() {
@@ -54,17 +77,20 @@ void ContextManager::fetch_from_queue() {
   _queue.clear();
 }
 void ContextManager::push_to_queue(std::function<void()> &&func) {
-  std::lock_guard<std::mutex> lock(_mtx);
-  _queue.emplace_back(std::move(func));
+  {
+    std::lock_guard<std::mutex> lock(_mtx);
+    _queue.emplace_back(std::move(func));
+  }
+  wake_up();
 }
 void ContextManager::manage() {
   while (true) {
-    epoll();
     fetch_from_queue();
     if (_context_list.empty()) {
       _status = Status::ready;
-      usleep(500);
+      no_task_epoll();
     } else {
+      epoll();
       //done : if all coroutine is I/O blocking, sleep 500us (it's totally... hard code).
       int done = 0;
       for (auto it = _context_list.begin(); it != _context_list.end();) {
@@ -100,9 +126,12 @@ void ContextManager::manage() {
           _status = Status::signal_handling;
           ++it;
         }
-        if (done == 0) {
-          usleep(500);
-        }
+      }
+      if (_context_list.empty()) {
+        continue;
+      }
+      if (done == 0) {
+        no_task_epoll();
       }
     }
   }

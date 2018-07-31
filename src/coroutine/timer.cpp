@@ -5,9 +5,6 @@
 #include <csignal>
 #include <cstdio>
 #include <sys/time.h>
-#include <bits/types/sigevent_t.h>
-#include <bits/types/siginfo_t.h>
-#include <pthread.h>
 
 Timer::Timer(int s, int ns, int signo,ContextManager* mng) {
   _tv = new itimerspec;
