@@ -53,6 +53,7 @@ ssize_t read(int fd, void *buf, size_t count) {
   if (cur == nullptr) {
     return origin_read(fd, buf, count);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   ssize_t res = 0;
   struct stat stat_buf{};
@@ -78,7 +79,7 @@ ssize_t read(int fd, void *buf, size_t count) {
     }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 ssize_t write(int fd, const void *buf, size_t count) {
@@ -90,6 +91,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
   if (cur == nullptr) {
     return origin_write(fd, buf, count);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   struct stat stat_buf{};
   fstat(fd, &stat_buf);
@@ -115,7 +117,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
     }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int open(const char *pathname, int flags, ...) {
@@ -141,6 +143,7 @@ int open(const char *pathname, int flags, ...) {
       }
       return origin_open(pathname, flags);
     } else {
+      auto save = cur->status();
       cur->set_status(Context::Status::syscalling);
       int fd;
       if ((unsigned) flags & (unsigned) O_CREAT) {
@@ -152,7 +155,7 @@ int open(const char *pathname, int flags, ...) {
       } else {
         fd = origin_open(pathname, flags);
       }
-      cur->set_status(Context::Status::running);
+      cur->set_status(save);
       return fd;
     }
   }
@@ -166,9 +169,10 @@ int close(int fd) {
   if (cur == nullptr) {
     return origin_close(fd);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   auto res = origin_close(fd);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int socket(int domain, int type, int protocol) {
@@ -180,9 +184,10 @@ int socket(int domain, int type, int protocol) {
   if (cur == nullptr) {
     return origin_socket(domain, type, protocol);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   auto res = origin_socket(domain, type, protocol);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
@@ -194,6 +199,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
   if (cur == nullptr) {
     return origin_connect(sockfd, addr, addrlen);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   int old_option = fcntl(sockfd, F_GETFL);
   fcntl(sockfd, F_SETFL, (unsigned) old_option | (unsigned) O_NONBLOCK);
@@ -208,7 +214,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
   }
   fcntl(sockfd, F_SETFL, old_option);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
@@ -220,9 +226,10 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
   if (cur == nullptr) {
     return origin_bind(sockfd, addr, addrlen);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   auto res = origin_bind(sockfd, addr, addrlen);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int listen(int sockfd, int backlog) {
@@ -234,9 +241,10 @@ int listen(int sockfd, int backlog) {
   if (cur == nullptr) {
     return origin_listen(sockfd, backlog);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   auto res = origin_listen(sockfd, backlog);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return res;
 }
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
@@ -248,6 +256,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   if (cur == nullptr) {
     return origin_accept(sockfd, addr, addrlen);
   }
+  auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
   epoll_event ev{};
   ev.events = EPOLLIN;
@@ -257,34 +266,8 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   mng->manager()->resume(cur);
   int fd = origin_accept(sockfd, addr, addrlen);
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
-  cur->set_status(Context::Status::running);
+  cur->set_status(save);
   return fd;
-}
-int printf(const char *format, ...) {
-  auto mng = Scheduler::get_current_manager();
-  int res;
-  if (mng == nullptr) {
-    va_list vl;
-    va_start(vl, format);
-    res = vfprintf(stdout, format, vl);
-    va_end(vl);
-  } else {
-    auto cur = mng->current();
-    if (cur == nullptr) {
-      va_list vl;
-      va_start(vl, format);
-      res = vfprintf(stdout, format, vl);
-      va_end(vl);
-    } else {
-      cur->set_status(Context::Status::syscalling);
-      va_list vl;
-      va_start(vl, format);
-      res = vfprintf(stdout, format, vl);
-      va_end(vl);
-      cur->set_status(Context::Status::running);
-    }
-  }
-  return res;
 }
 void hook_malloc() {
   auto libc = dlopen("libc.so.6", RTLD_LAZY);

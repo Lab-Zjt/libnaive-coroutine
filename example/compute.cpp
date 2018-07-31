@@ -11,7 +11,7 @@ void func1(std::uint64_t max) {
   for (int i = 0; i < max; ++i) {
     sum += i;
     if (i % 1000000 == 0) {
-      printf("func1: %lu\n", sum);
+      printf("func1: %lu\r", sum);
     }
   }
 }
@@ -20,7 +20,7 @@ void func2(std::uint64_t max) {
   for (int i = 0; i < max; ++i) {
     sum += i;
     if (i % 1000000 == 0) {
-      printf("func2: %lu\n", sum);
+      printf("func2: %lu\r", sum);
     }
   }
 }
@@ -29,7 +29,7 @@ void func4(std::uint64_t max) {
   for (int i = 0; i < max; ++i) {
     sum += i;
     if (i % 1000000 == 0) {
-      printf("func4: %lu\n", sum);
+      printf("func4: %lu\r", sum);
     }
   }
   go(func1, 100000000);
@@ -43,7 +43,7 @@ Coro_Main(argc, argv) {
     for (int i = 0; i < max; ++i) {
       sum += i;
       if (i % 1000000 == 0) {
-        printf("func3: %lu\n", sum);
+        printf("func3: %lu\r", sum);
       }
     }
   }, 100000000);
