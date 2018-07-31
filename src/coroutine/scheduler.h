@@ -11,7 +11,7 @@ class ContextManager;
 
 class Context;
 
-constexpr int max_thread = 7;
+constexpr int max_thread = 2;
 
 class Scheduler {
   typedef int(*main_t)(int, char *[]);

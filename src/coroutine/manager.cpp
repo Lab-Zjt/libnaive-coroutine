@@ -56,6 +56,9 @@ void ContextManager::set_signal_handler() {
 void ContextManager::alarm(int sig) {
   auto mng = Scheduler::get_current_manager();
   if (sig == mng->signo()) {
+    if (mng->_cur == nullptr) {
+      return;
+    }
     //should not swap context when it is syscalling or IOblocking(IOblocking is a special syscalling status)
     if (mng->_cur->status() == Context::Status::syscalling || mng->_cur->status() == Context::Status::IOblocking ||
         mng->_cur->status() == Context::Status::finished) {
