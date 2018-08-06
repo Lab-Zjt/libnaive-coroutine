@@ -23,21 +23,21 @@ namespace soranet {
     auto count = 0;
     while (count != size) {
       auto realsize = SSL_read(_ssl, buf + count, size - count);
-      rlog(realsize);
-      if (realsize == 5)break;
-      auto err = SSL_get_error(_ssl, realsize);
-      if (err == SSL_ERROR_NONE || (err == SSL_ERROR_SYSCALL && errno == 0)) {
-        count += realsize;
-      } else {
-        break;
-      }
+      //rlog(realsize);
       // TODO : handle read failed
       if (realsize == 0 || realsize == -1) break;
+      count += realsize;
       printf("%d/%lu\r", count, size);
       fflush(stdout);
+      // FIXME : usually SSL_read() return 16384 and if return value < 16384 mean all content was read, but fxxk www.baidu.com will not return 16384. Now it cannot handle non-block socket.
+      if (realsize < 16384)break;
+    }
+    if (count < 0) {
+      delete[]buf;
+      return std::string{};
     }
     auto res = std::string(buf, count);
-    delete buf;
+    delete[]buf;
     return res;
   }
   void TLSpipe::tlsWrite(const std::string &str) {
@@ -46,9 +46,9 @@ namespace soranet {
     auto count = 0;
     while (count != size) {
       auto realsize = SSL_write(_ssl, cstr + count, size - count);
-      wlog(realsize);
+      //wlog(realsize);
       //TODO : handle write failed
-      if (realsize <= 16384)return;
+      if (realsize < 16384)return;
       if (realsize == -1)return;
       if (realsize == 0)return;
       count += realsize;

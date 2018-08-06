@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(coronet)
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_FLAGS "-Wall -Wno-sign-compare -Wno-pointer-arith")
 
 include_directories(src)
 file(GLOB SORA_NET_SRC src/net/*.cpp)
@@ -20,13 +21,11 @@ add_executable(http example/http.cpp)
 find_package(OpenSSL REQUIRED)
 set(OPENSSL_USE_SHARED_LIB TRUE)
 
+target_link_libraries(coro coro_hook coro_net libdl.so librt.so libpthread.so OpenSSL::SSL OpenSSL::Crypto)
 
-target_link_libraries(coro_hook libdl.so)
-target_link_libraries(coro coro_hook coro_net librt.so libpthread.so OpenSSL::SSL OpenSSL::Crypto)
-
-target_link_libraries(new_delete coro_hook coro)
-target_link_libraries(echo coro_hook coro)
-target_link_libraries(compute coro_hook coro)
-target_link_libraries(mutex coro_hook coro)
-target_link_libraries(http coro_hook coro)
+target_link_libraries(new_delete coro)
+target_link_libraries(echo coro)
+target_link_libraries(compute coro)
+target_link_libraries(mutex coro)
+target_link_libraries(http coro)
 

@@ -25,7 +25,7 @@ namespace soranet {
     void setEventLoop(EventLoop *loop);
   };
   
-  __attribute__((constructor(120))) static void SSLinitialize();
+  void SSLinitialize();
   std::shared_ptr<TLSconnection> tlsDial(const std::string &ip, std::uint16_t port, bool isIpv6 = false);
   std::shared_ptr<TLSconnection> tlsDial(const Address &addr, bool isIpv6 = false);
   std::shared_ptr<TLSconnection> httpsDial(const std::string &address, const std::string &port = "443");

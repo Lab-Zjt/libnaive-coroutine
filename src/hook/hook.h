@@ -35,10 +35,7 @@ extern malloc_t origin_malloc;
 extern free_t origin_free;
 extern recv_t origin_recv;
 extern send_t origin_send;
-__attribute__((constructor(110))) void hook_all();
-
-//void *__wrap_malloc(size_t size);
-//void __wrap_free(void *ptr);
+void hook_all();
 };
 
 #endif

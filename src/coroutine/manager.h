@@ -32,8 +32,8 @@ private:
   int _epfd;
   pthread_t _tid;
   Status _status;
-  std::vector<epoll_event> _event_list;
   int _max_event;
+  std::vector<epoll_event> _event_list;
   int _evfd;
 public:
   explicit ContextManager(int index);

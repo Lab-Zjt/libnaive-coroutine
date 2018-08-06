@@ -48,10 +48,10 @@ void hook_all() {
       origin_send == nullptr) {
     exit(-1);
   }
-  printf("Hook Success!\n");
+  //printf("Hook Success!\n");
 }
 ssize_t read(int fd, void *buf, size_t count) {
-  printf("Hook Read Call!");
+  //printf("Hook Read Call!\n");
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_read(fd, buf, count);
@@ -65,10 +65,10 @@ ssize_t read(int fd, void *buf, size_t count) {
   ssize_t res = 0;
   struct stat stat_buf{};
   fstat(fd, &stat_buf);
-  if (S_ISREG(stat_buf.st_mode)) {
+  if (!S_ISSOCK(stat_buf.st_mode)) {
     while (res != count) {
       auto realsize = origin_read(fd, buf + res, count - res);
-      if (realsize == 0 | realsize == -1) break;
+      if (realsize == 0 || realsize == -1) break;
       res += realsize;
     }
   } else {
@@ -81,7 +81,7 @@ ssize_t read(int fd, void *buf, size_t count) {
     res = 0;
     while (res != count) {
       auto realsize = origin_read(fd, buf + res, count - res);
-      if (realsize == 0 | realsize == -1) break;
+      if (realsize == 0 || realsize == -1) break;
       res += realsize;
     }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
@@ -103,10 +103,10 @@ ssize_t write(int fd, const void *buf, size_t count) {
   struct stat stat_buf{};
   fstat(fd, &stat_buf);
   ssize_t res = 0;
-  if (S_ISREG(stat_buf.st_mode)) {
+  if (!S_ISSOCK(stat_buf.st_mode)) {
     while (res != count) {
       auto realsize = origin_write(fd, buf + res, count - res);
-      if (realsize == 0 | realsize == -1) break;
+      if (realsize == 0 || realsize == -1) break;
       res += realsize;
     }
   } else {
@@ -119,7 +119,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
     res = 0;
     while (res != count) {
       auto realsize = ::origin_write(fd, buf + res, count - res);
-      if (realsize == 0 | realsize == -1) break;
+      if (realsize == 0 || realsize == -1) break;
       res += realsize;
     }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
@@ -353,7 +353,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
   res = 0;
   while (res != len) {
     auto realsize = origin_recv(sockfd, buf + res, len - res, flags);
-    if (realsize == 0 | realsize == -1) break;
+    if (realsize == 0 || realsize == -1) break;
     res += realsize;
   }
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
@@ -361,6 +361,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
   return res;
 }
 ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
+  printf("Hook Send Call!\n");
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_send(sockfd, buf, len, flags);
@@ -373,7 +374,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   cur->set_status(Context::Status::syscalling);
   ssize_t res = 0;
   epoll_event ev{};
-  ev.events = EPOLLIN;
+  ev.events = EPOLLOUT;
   ev.data.ptr = cur;
   epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
   cur->set_status(Context::Status::IOblocking);
@@ -381,7 +382,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   res = 0;
   while (res != len) {
     auto realsize = origin_send(sockfd, buf + res, len - res, flags);
-    if (realsize == 0 | realsize == -1) break;
+    if (realsize == 0 || realsize == -1) break;
     res += realsize;
   }
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
