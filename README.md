@@ -17,6 +17,9 @@ main函数已经被#define掉了，程序入口改为Coro_Main(argc,argv)宏。
 ## 注意事项
 
 目前hook的系统调用：
-read,write,open,close,socket,connect,bind,listen,accept,malloc,free,recv,send.
+read,write,open,close,socket,connect,bind,listen,accept,recv,send.
+
+虽然不是系统调用，但是调用过程中会调用没有glibc接口的`futex()`系统调用：
+malloc,free,printf.
 
 SSL_read()可能不能正常工作，例如`httpsGET("www.baidu.com")`的时候，其每次读取的大小远小于16384字节,而httpsGET其他大部分网站时均是每次读取16384字节直至无内容可读，故目前判断`tlsRead()`结束的条件为读取字节数小于16384。由于`SSL_read()`是阻塞的（目未找到能在当前设计下能用的使`SSL_read()`不阻塞的解决方法），故只能通过`SSL_read()<16384`的方法来判断结束。

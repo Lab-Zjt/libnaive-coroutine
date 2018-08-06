@@ -387,4 +387,31 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   cur->set_status(save);
   return res;
 }
+int printf(const char *format, ...) {
+  auto mng = Scheduler::get_current_manager();
+  int res;
+  if (mng == nullptr) {
+    va_list vl;
+    va_start(vl, format);
+    res = vfprintf(stdout, format, vl);
+    va_end(vl);
+  } else {
+    auto cur = mng->current();
+    if (cur == nullptr) {
+      va_list vl;
+      va_start(vl, format);
+      res = vfprintf(stdout, format, vl);
+      va_end(vl);
+    } else {
+      auto save = cur->status();
+      cur->set_status(Context::Status::syscalling);
+      va_list vl;
+      va_start(vl, format);
+      res = vfprintf(stdout, format, vl);
+      va_end(vl);
+      cur->set_status(save);
+    }
+  }
+  return res;
+}
 }
