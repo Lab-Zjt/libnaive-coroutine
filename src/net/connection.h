@@ -24,7 +24,8 @@ namespace soranet {
   
   std::shared_ptr<Connection> Dial(const std::string &ip, std::uint16_t port, bool isIpv6 = false);
   std::shared_ptr<Connection> Dial(const Address &addr, bool isIpv6 = false);
-  std::shared_ptr<Connection> httpDial(const std::string &address, std::uint16_t port = 80);
+  //std::shared_ptr<Connection> httpDial(const std::string &address, std::uint16_t port = 80);
+  std::shared_ptr<Connection> httpDial(const std::string &address, const std::string &port = "80");
 }
 
 #endif

@@ -22,6 +22,8 @@ accept_t origin_accept = nullptr;
 printf_t origin_printf = nullptr;
 malloc_t origin_malloc = nullptr;
 free_t origin_free = nullptr;
+recv_t origin_recv = nullptr;
+send_t origin_send = nullptr;
 void hook_all() {
   libc = dlopen("libc.so.6", RTLD_LAZY);
   if (libc == nullptr) {
@@ -38,13 +40,18 @@ void hook_all() {
   origin_accept = accept_t(dlsym(libc, "accept"));
   origin_printf = printf_t(dlsym(libc, "printf"));
   origin_free = free_t(dlsym(libc, "free"));
+  origin_recv = recv_t(dlsym(libc, "recv"));
+  origin_send = send_t(dlsym(libc, "send"));
   if (origin_read == nullptr || origin_write == nullptr || origin_open == nullptr || origin_close == nullptr ||
       origin_socket == nullptr || origin_connect == nullptr || origin_bind == nullptr || origin_listen == nullptr ||
-      origin_accept == nullptr || origin_printf == nullptr || origin_free == nullptr) {
+      origin_accept == nullptr || origin_printf == nullptr || origin_free == nullptr || origin_recv == nullptr ||
+      origin_send == nullptr) {
     exit(-1);
   }
+  printf("Hook Success!\n");
 }
 ssize_t read(int fd, void *buf, size_t count) {
+  printf("Hook Read Call!");
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_read(fd, buf, count);
@@ -323,5 +330,62 @@ void free(void *ptr) {
   cur->set_status(Context::Status::syscalling);
   origin_free(ptr);
   cur->set_status(Context::Status::running);
+}
+ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
+  printf("Hook Recv Call!\n");
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_recv(sockfd, buf, len, flags);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_recv(sockfd, buf, len, flags);
+  }
+  auto save = cur->status();
+  cur->set_status(Context::Status::syscalling);
+  ssize_t res = 0;
+  epoll_event ev{};
+  ev.events = EPOLLIN;
+  ev.data.ptr = cur;
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
+  cur->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(cur);
+  res = 0;
+  while (res != len) {
+    auto realsize = origin_recv(sockfd, buf + res, len - res, flags);
+    if (realsize == 0 | realsize == -1) break;
+    res += realsize;
+  }
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
+  cur->set_status(save);
+  return res;
+}
+ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
+  auto mng = Scheduler::get_current_manager();
+  if (mng == nullptr) {
+    return origin_send(sockfd, buf, len, flags);
+  }
+  auto cur = mng->current();
+  if (cur == nullptr) {
+    return origin_send(sockfd, buf, len, flags);
+  }
+  auto save = cur->status();
+  cur->set_status(Context::Status::syscalling);
+  ssize_t res = 0;
+  epoll_event ev{};
+  ev.events = EPOLLIN;
+  ev.data.ptr = cur;
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
+  cur->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(cur);
+  res = 0;
+  while (res != len) {
+    auto realsize = origin_send(sockfd, buf + res, len - res, flags);
+    if (realsize == 0 | realsize == -1) break;
+    res += realsize;
+  }
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
+  cur->set_status(save);
+  return res;
 }
 }

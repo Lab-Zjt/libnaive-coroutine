@@ -59,7 +59,7 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   int sig;
   //TODO : I didn't find a appropriate time slice length, so I hard code it now.
   timespec tv{};
-  tv.tv_sec = 0;
+  tv.tv_sec = 500000;
   tv.tv_nsec = 500000;
   siginfo_t st;
   sigset_t ss;
