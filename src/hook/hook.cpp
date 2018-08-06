@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <cstdlib>
 
 extern "C" {
 void *libc = nullptr;
@@ -45,6 +46,7 @@ void hook_all() {
   }
 }
 ssize_t read(int fd, void *buf, size_t count) {
+  printf("Hook Read Call!\n");
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_read(fd, buf, count);
