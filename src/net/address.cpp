@@ -34,7 +34,7 @@ namespace srlib {
 namespace soranet {
 #define v6 ((::sockaddr_in6*)(_addr))
 #define v4 ((::sockaddr_in*)(_addr))
-  Address::Address() : _bad(true), _addr(new sockaddr), _ipv6(false) {}
+  Address::Address() : _addr(new sockaddr),_bad(true),  _ipv6(false) {}
   Address::Address(const std::string &ip, std::uint16_t port, bool isIpv6)noexcept {
     _addr = new sockaddr;
     memset(_addr, 0, sizeof(sockaddr));
@@ -53,7 +53,7 @@ namespace soranet {
   }
   Address::Address(const std::string &ip, const std::string &port, bool isIpv6)noexcept
     : Address(ip, std::atoi(port.c_str()), isIpv6) {}
-  Address::Address(const ::sockaddr &addr, bool isIpv6)noexcept : _ipv6(isIpv6), _bad(false) {
+  Address::Address(const ::sockaddr &addr, bool isIpv6)noexcept : _bad(false),_ipv6(isIpv6) {
     _addr = new ::sockaddr;
     memmove(_addr, &addr, sizeof(addr));
   }

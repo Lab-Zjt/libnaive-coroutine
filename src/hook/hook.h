@@ -19,6 +19,8 @@ typedef int (*accept_t)(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 typedef int (*printf_t)(const char *format, ...);
 typedef void *(*malloc_t)(size_t size);
 typedef void (*free_t)(void *ptr);
+typedef ssize_t (*recv_t)(int sockfd, void *buf, size_t len, int flags);
+typedef ssize_t (*send_t)(int sockfd, const void *buf, size_t len, int flags);
 extern read_t origin_read;
 extern write_t origin_write;
 extern open_t origin_open;
@@ -31,10 +33,9 @@ extern accept_t origin_accept;
 extern printf_t origin_printf;
 extern malloc_t origin_malloc;
 extern free_t origin_free;
-void hook_all() __attribute__((constructor(110)));
-
-//void *__wrap_malloc(size_t size);
-//void __wrap_free(void *ptr);
+extern recv_t origin_recv;
+extern send_t origin_send;
+void hook_all();
 };
 
 #endif

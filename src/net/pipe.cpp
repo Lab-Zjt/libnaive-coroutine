@@ -14,6 +14,10 @@ namespace soranet {
   std::string Pipe::read(size_t size) {
     auto buf = new char[size];
     auto count = ::read(_fd, buf, size);
+    if (count < 0) {
+      delete[]buf;
+      return std::string{};
+    }
     auto res = std::string(buf, count);
     delete[] buf;
     return res;
@@ -27,9 +31,6 @@ namespace soranet {
   void Pipe::write(const std::string &str) {
     if (_isClosed)
       return;
-    auto cstr = str.c_str();
-    auto size = str.size();
-    auto count = 0;
     ::write(_fd, str.c_str(), str.size());
   }
   bool Pipe::isBad() {return _fd < 0;}

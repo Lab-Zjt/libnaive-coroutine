@@ -46,7 +46,7 @@ void ContextManager::no_task_epoll() {
 }
 void ContextManager::wake_up() {
   if (_wake_up_mtx.try_lock()) {
-    ::origin_write(_evfd, &ev_buf, sizeof(ev_buf));
+    write(_evfd, &ev_buf, sizeof(ev_buf));
     _wake_up_mtx.unlock();
   }
 }
@@ -69,7 +69,7 @@ void ContextManager::alarm(int sig) {
   }
 }
 void ContextManager::start() {
-  _timer = new Timer(0, 1000, _sig, this);
+  _timer = new Timer(0, 100000, _sig, this);
   _manager->resume(nullptr);
 }
 void ContextManager::fetch_from_queue() {
