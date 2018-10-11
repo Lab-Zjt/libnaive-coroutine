@@ -36,7 +36,7 @@ void ContextManager::epoll() {
   for (int i = 0; i < ready_count; ++i) {
     if (_event_list[i].data.ptr == this) {
       ::read(_evfd, &ev_read_buf, sizeof(ev_read_buf));
-      printf("Read From Eventfd.\n");
+      //printf("Read From Eventfd.\n");
     } else {
       static_cast<Context::pointer >(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
     }
@@ -44,12 +44,12 @@ void ContextManager::epoll() {
 }
 void ContextManager::no_task_epoll() {
   auto ready_count = epoll_wait(_epfd, _event_list.data(), _max_event, -1);
-  perror("epoll_wait");
-  printf("no task epoll return %d.\n", ready_count);
+  //perror("epoll_wait");
+  //printf("no task epoll return %d.\n", ready_count);
   for (int i = 0; i < ready_count; ++i) {
     if (_event_list[i].data.ptr == this) {
       ::read(_evfd, &ev_read_buf, sizeof(ev_read_buf));
-      printf("Read From Eventfd.\n");
+      //printf("Read From Eventfd.\n");
     } else {
       static_cast<Context::pointer>(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
     }
@@ -58,7 +58,7 @@ void ContextManager::no_task_epoll() {
 void ContextManager::wake_up() {
   if (_wake_up_mtx.try_lock()) {
     auto b = write(_evfd, &ev_write_buf, sizeof(ev_write_buf));
-    printf("Write To Eventfd %lu.\n", b);
+    //printf("Write To Eventfd %lu.\n", b);
     _wake_up_mtx.unlock();
   }
 }
