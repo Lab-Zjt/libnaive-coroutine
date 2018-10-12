@@ -24,13 +24,13 @@ public:
   typedef Context &reference;
   typedef void(*helper)();
   enum class Status {
-    running, ready, IOblocking, finished, syscalling
+    running, ready, IOblocking, finished
   };
 private:
   ucontext_t *_ucp = nullptr;
   std::function<void()> _fn;
-  int _fn_ptr[2];
-  int _this_ptr[2];
+  int _fn_ptr[2]{};
+  int _this_ptr[2]{};
   Status _status = Status::ready;
   static void ucontext_helper(int fn_ptr1, int fn_ptr2, int this_ptr1, int this_ptr2);
 public:
@@ -38,13 +38,14 @@ public:
   ~Context();
   Context(std::function<void()> &&fn, size_t stack_size = normal_stack_size);
   void resume(Context *from);
+  void yiled();
   inline Status status() {return _status;}
   inline void set_status(Status st) {_status = st;}
 };
-
-template<typename Func, typename ...ARGS>
+#define co_yiled Schduler::current()->yiled()
+template<size_t STACK_SIZE = normal_stack_size,typename Func, typename ...ARGS>
 void go(Func &&func, ARGS &&...args) {
-  _scheduler->push_func(std::bind(func, args...));
+  _scheduler->push_func(std::bind(func, args...),STACK_SIZE);
 };
 
 #endif

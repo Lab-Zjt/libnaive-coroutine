@@ -11,7 +11,7 @@ class ContextManager;
 
 class Context;
 
-constexpr int max_thread = 2;
+constexpr int max_thread = 5;
 
 class Scheduler {
   typedef int(*main_t)(int, char *[]);
@@ -25,10 +25,9 @@ public:
   void init();
   bool empty();
   bool initializing() {return _initializing;}
-  void push_func(std::function<void()> &&func);
+  void push_func(std::function<void()> &&func,size_t stack_size);
 };
 
-void set_sigmask(sigset_t* ss);
 
 extern Scheduler *_scheduler;
 

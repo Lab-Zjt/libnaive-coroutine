@@ -9,8 +9,7 @@
 #include <sys/eventfd.h>
 #include <hook/hook.h>
 
-ContextManager::ContextManager(int index) : _sig(40 + index), _status(Status::creating), _max_event(16),
-  _event_list(16) {
+ContextManager::ContextManager(int index) : _status(Status::creating), _max_event(16), _event_list(16) {
   _manager = new Context(std::bind(&ContextManager::manage, this), 1024 * 1024);
   _epfd = epoll_create(1024);
   _evfd = eventfd(0, 0);
@@ -38,63 +37,46 @@ void ContextManager::epoll() {
       ::read(_evfd, &ev_read_buf, sizeof(ev_read_buf));
       //printf("Read From Eventfd.\n");
     } else {
-      static_cast<Context::pointer >(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
+      static_cast<Context::pointer >(_event_list[i].data.ptr)->set_status(Context::Status::ready);
     }
   }
 }
 void ContextManager::no_task_epoll() {
   auto ready_count = epoll_wait(_epfd, _event_list.data(), _max_event, -1);
-  //perror("epoll_wait");
-  //printf("no task epoll return %d.\n", ready_count);
   for (int i = 0; i < ready_count; ++i) {
     if (_event_list[i].data.ptr == this) {
       ::read(_evfd, &ev_read_buf, sizeof(ev_read_buf));
-      //printf("Read From Eventfd.\n");
     } else {
-      static_cast<Context::pointer>(_event_list[i].data.ptr)->set_status(Context::Status::syscalling);
+      static_cast<Context::pointer>(_event_list[i].data.ptr)->set_status(Context::Status::ready);
     }
   }
 }
 void ContextManager::wake_up() {
   if (_wake_up_mtx.try_lock()) {
     auto b = write(_evfd, &ev_write_buf, sizeof(ev_write_buf));
-    //printf("Write To Eventfd %lu.\n", b);
     _wake_up_mtx.unlock();
   }
 }
-void ContextManager::set_signal_handler() {
-  signal(_sig, ContextManager::alarm);
-}
-void ContextManager::alarm(int sig) {
-  auto mng = Scheduler::get_current_manager();
-  if (sig == mng->signo()) {
-    if (mng->_cur == nullptr) {
-      return;
-    }
-    //should not swap context when it is syscalling or IOblocking(IOblocking is a special syscalling status)
-    if (mng->_cur->status() == Context::Status::syscalling || mng->_cur->status() == Context::Status::IOblocking ||
-        mng->_cur->status() == Context::Status::finished) {
-      return;
-    }
-    mng->_cur->set_status(Context::Status::ready);
-    mng->_manager->resume(mng->_cur);
-  }
-}
 void ContextManager::start() {
-  _timer = new Timer(0, 100000, _sig, this);
   _manager->resume(nullptr);
 }
 void ContextManager::fetch_from_queue() {
-  std::lock_guard<std::mutex> lock(_mtx);
-  for (auto &it:_queue) {
-    _context_list.push_back(new Context(std::move(it)));
-  }
-  _queue.clear();
-}
-void ContextManager::push_to_queue(std::function<void()> &&func) {
+  std::vector<std::pair<std::function<void()>, size_t>> tmp;
   {
     std::lock_guard<std::mutex> lock(_mtx);
-    _queue.emplace_back(std::move(func));
+    for (auto &&it:_queue) {
+      tmp.emplace_back(std::move(it));
+    }
+    _queue.clear();
+  }
+  for (auto &it:tmp) {
+    _context_list.push_back(new Context(std::move(it.first), it.second));
+  }
+}
+void ContextManager::push_to_queue(std::function<void()> &&func, size_t stack_size) {
+  {
+    std::lock_guard<std::mutex> lock(_mtx);
+    _queue.emplace_back(std::make_pair(std::move(func), stack_size));
   }
   wake_up();
 }
@@ -116,11 +98,9 @@ void ContextManager::manage() {
           ctx->set_status(Context::Status::running);
           _status = Status::running;
           _cur = ctx;
-          _timer->start();
           ctx->resume(_manager);
-          _timer->stop();
           _cur = nullptr;
-          _status = Status::signal_handling;
+          //_status = Status::signal_handling;
           ++it;
         } else if (ctx->status() == Context::Status::IOblocking) {
           //when context call a I/O block function, context status would become IOblocking
@@ -129,17 +109,6 @@ void ContextManager::manage() {
           //when context function exit, context status would become finished.
           delete (*it);
           it = _context_list.erase(it);
-        } else if (ctx->status() == Context::Status::syscalling) {
-          done++;
-          //context status become syscalling when it call I/O block function, it would be added to epoll, when epoll return, context status would become syscalling.
-          _status = Status::running;
-          _cur = ctx;
-          _timer->start();
-          ctx->resume(_manager);
-          _timer->stop();
-          _cur = nullptr;
-          _status = Status::signal_handling;
-          ++it;
         }
       }
       if (_context_list.empty()) {

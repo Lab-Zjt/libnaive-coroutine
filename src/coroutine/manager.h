@@ -16,7 +16,7 @@ struct epoll_event;
 class ContextManager {
 public:
   enum class Status {
-    signal_handling, ready, running, creating
+    ready, running, creating
   };
   typedef ContextManager *pointer;
   typedef ContextManager &reference;
@@ -26,9 +26,7 @@ private:
   Context *_cur;
   std::mutex _mtx;
   std::mutex _wake_up_mtx;
-  Timer *_timer;
-  std::vector<std::function<void()>> _queue;
-  int _sig;
+  std::vector<std::pair<std::function<void()>, size_t >> _queue;
   int _epfd;
   pthread_t _tid;
   Status _status;
@@ -37,7 +35,6 @@ private:
   int _evfd;
 public:
   explicit ContextManager(int index);
-  inline int signo() {return _sig;}
   inline pthread_t tid() {return _tid;}
   inline void set_tid(pthread_t t) {_tid = t;}
   inline Status status() {return _status;}
@@ -45,15 +42,13 @@ public:
   inline Context *manager() {return _manager;}
   inline Context *current() {return _cur;}
   inline int epfd() {return _epfd;}
-  void push_to_queue(std::function<void()> &&func);
+  void push_to_queue(std::function<void()> &&func, size_t size);
   void fetch_from_queue();
   void start();
   void manage();
-  void set_signal_handler();
   void epoll();
   void no_task_epoll();
   void wake_up();
-  static void alarm(int sig);
 };
 
 #endif
