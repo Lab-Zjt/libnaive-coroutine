@@ -1,7 +1,7 @@
 #ifndef SORANET_TLSPIPE_H
 #define SORANET_TLSPIPE_H
 
-#include <net/pipe.h>
+#include "pipe.h"
 struct ssl_st;
 struct ssl_method_st;
 struct ssl_ctx_st;

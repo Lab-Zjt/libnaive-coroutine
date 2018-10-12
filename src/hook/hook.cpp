@@ -370,6 +370,11 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   }
   auto save = cur->status();
   cur->set_status(Context::Status::syscalling);
+  /*int flag;
+  flag = fcntl(sockfd, F_GETFL);
+  if (!(flag & O_NONBLOCK)) {
+    fcntl(sockfd, F_SETFL, flag | O_NONBLOCK);
+  }*/
   ssize_t res = 0;
   epoll_event ev{};
   ev.events = EPOLLOUT;
