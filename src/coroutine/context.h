@@ -37,11 +37,11 @@ public:
   ~Context();
   Context(std::function<void()> &&fn, size_t stack_size = normal_stack_size);
   void resume(Context *from);
-  void yiled();
+  //void yiled();
   inline Status status() {return _status;}
   inline void set_status(Status st) {_status = st;}
 };
-#define co_yiled Schduler::current()->yiled()
+
 template<size_t STACK_SIZE = normal_stack_size,typename Func, typename ...ARGS>
 void go(Func &&func, ARGS &&...args) {
   _scheduler->push_func(std::bind(func, args...),STACK_SIZE);

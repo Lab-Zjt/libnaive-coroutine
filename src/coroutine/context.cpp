@@ -35,6 +35,3 @@ void Context::resume(Context *from) {
     swapcontext(from->_ucp, _ucp);
   }
 }
-void Context::yiled() {
-  Scheduler::get_current_manager()->manager()->resume(this);
-}

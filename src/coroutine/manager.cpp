@@ -108,6 +108,8 @@ void ContextManager::manage() {
           //when context function exit, context status would become finished.
           delete (*it);
           it = _context_list.erase(it);
+        } else if (ctx->status() == Context::Status::running){
+          fprintf(stderr,"FATAL ERROR: A COROUTINE YILED WITH STATUS 'RUNNING'.\n");
         }
       }
       if (_context_list.empty()) {

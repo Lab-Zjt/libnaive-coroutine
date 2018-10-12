@@ -13,6 +13,9 @@ void func1(std::uint64_t max) {
     if (i % 1000000 == 0) {
       printf("func1: %lu\r", sum);
     }
+    if (i % 500000 == 0){
+      co_yiled;
+    }
   }
 }
 void func2(std::uint64_t max) {
