@@ -11,7 +11,6 @@ struct ucontext_t;
 
 class Context;
 
-extern bool is_regular[1024];
 #define divptr(p, p1, p2) (p2) = (int)((p)&0x00000000ffffffff),(p1) = (int)(((p)>>32)&0x00000000ffffffff)
 #define makeptr(p1, p2) ((((std::uint64_t)(p1))<<32)|(((std::uint64_t)(p2))&0x00000000ffffffff))
 

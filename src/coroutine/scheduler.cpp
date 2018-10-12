@@ -57,6 +57,7 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   push_func(std::bind(cmain, argc, argv), 1024 * 1024);
   int sig;
   //TODO : I didn't find a appropriate time slice length, so I hard code it now.
+  // this thread will check each manager per 50ms, if all manager is empty, the process will exit.
   timespec tv{};
   tv.tv_sec = 0;
   tv.tv_nsec = 50000;

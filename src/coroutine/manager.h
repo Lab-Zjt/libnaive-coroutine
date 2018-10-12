@@ -18,8 +18,6 @@ public:
   enum class Status {
     ready, running, creating
   };
-  typedef ContextManager *pointer;
-  typedef ContextManager &reference;
 private:
   std::list<Context *> _context_list;
   Context *_manager;
