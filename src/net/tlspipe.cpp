@@ -4,7 +4,7 @@
 
 namespace soranet {
   TLSpipe::TLSpipe() {
-    _method = TLS_client_method();
+    _method = TLSv1_2_client_method();
     _ctx = SSL_CTX_new(_method);
     _ssl = SSL_new(_ctx);
   }
