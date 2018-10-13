@@ -3,6 +3,7 @@
 #include <net/request.h>
 #include <iostream>
 #include <fcntl.h>
+#include <utility/io.h>
 
 using namespace srlib;
 using namespace std;
@@ -13,6 +14,10 @@ Coro_Main(argc, argv) {
   bool flag = false;
   go([&str, &flag]() {
     str = net::httpsGet("www.sorakasugano.com", {}, 409600);
+    auto content = str.split("\r\n");
+    for (auto &&line:content) {
+      println(line);
+    }
     flag = true;
   });
   auto resp = net::httpsGet("www.bilibili.com", {}, 409600);

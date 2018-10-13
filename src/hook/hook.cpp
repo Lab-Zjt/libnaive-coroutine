@@ -132,6 +132,10 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, sockfd, &ev);
     cur->set_status(Context::Status::IOblocking);
     mng->manager()->resume(cur);
+    res = origin_connect(sockfd, addr, addrlen);
+    if (errno == EISCONN) {
+      res = 0;
+    }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
   }
   fcntl(sockfd, F_SETFL, old_option);

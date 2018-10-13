@@ -63,6 +63,7 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   tv.tv_nsec = 50000;
   siginfo_t st;
   sigset_t ss;
+  sigaddset(&ss, SIGPIPE);
   sigaddset(&ss, SIGVTALRM);
   while (true) {
     //wait signal.
