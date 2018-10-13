@@ -1,26 +1,36 @@
-#ifndef SORANET_LISTENER_H
-#define SORANET_LISTENER_H
+#ifndef UTILITY_LISTENER_H
+#define UTILITY_LISTENER_H
 
-#include "pipe.h"
+#include <sys/socket.h>
+#include "utility/file.h"
 
-namespace soranet {
-  class Connection;
-  
-  class Address;
-  
-  class Listener : public Pipe {
-  protected:
-    Address *_addr;
-  public:
-    Listener();
-    ~Listener() override;
-    Listener(const std::string &ip, std::uint16_t port, bool isIpv6 = false);
-    void listen(int backlog);
-    Connection *accpet();
-    Address &getAddress();
-  };
-  
-  Listener Listen(const std::string &ip, std::uint16_t port, int backlog = 10);
+namespace srlib {
+  class String;
+  namespace net {
+    class Address;
+    
+    class Connection;
+    
+    class Listener : public File {
+    private:
+      Address *_addr = nullptr;
+    public:
+      Listener() = default;
+      ~Listener() override;
+      Listener(const Address &addr, bool listen = true, int backlog = 10);
+      Listener(const String &ip, std::uint16_t port, bool listen = true, int backlog = 10);
+      Listener(const String &ip, const String &port, bool listen = true, int backlog = 10);
+      Listener(const Listener &) = delete;
+      Listener &operator=(const Listener &)= delete;
+      Listener(Listener &&rhs)noexcept;
+      Listener &operator=(Listener &&rhs)noexcept;
+      int Listen(int backlog = 10) const;
+      std::shared_ptr<Connection> Accept() const;
+      const Address &GetAddress() const;
+    };
+    
+    std::shared_ptr<Listener> Listen(const Address &addr);
+  }
 }
 
 #endif

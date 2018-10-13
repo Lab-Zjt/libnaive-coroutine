@@ -1,30 +1,56 @@
-#ifndef SORANET_CONNECTION_H
-#define SORANET_CONNECTION_H
+#ifndef UTILITY_CONNECTION_H
+#define UTILITY_CONNECTION_H
 
-#include "pipe.h"
-#include <memory>
+#include "utility/file.h"
 
-struct sockaddr;
-namespace soranet {
-  
-  class Address;
-  
-  class Connection : public Pipe {
-    Address *_addr;
-    bool _bad;
-    bool _isConnected;
-  public:
-    Connection() = default;
-    ~Connection() override;
-    Connection(const std::string &ip, std::uint16_t port, int fd, bool isIpv6 = false);
-    Connection(const sockaddr &addr, int fd);
-    Connection(const Address &addr, int fd);
-    Address &getAddress();
-  };
-  
-  std::shared_ptr<Connection> Dial(const std::string &ip, std::uint16_t port, bool isIpv6 = false);
-  std::shared_ptr<Connection> Dial(const Address &addr, bool isIpv6 = false);
-  std::shared_ptr<Connection> httpDial(const std::string &address, const std::string &port = "80");
+namespace srlib {
+  class String;
+  namespace net {
+    class Address;
+    
+    class Connection : public File {
+    private:
+      Address *_addr;
+      bool _connected;
+    public:
+      Connection() = default;
+      ~Connection() override;
+      Connection(const Address &addr, int fd, bool connect = true);
+      Connection(const String &ip, const String &port, int fd, bool connect = true);
+      Connection(const String &ip, std::uint16_t port, int fd, bool connect = true);
+      Connection(const Connection &rhs) = delete;
+      Connection &operator=(const Connection &rhs) = delete;
+      Connection(Connection &&old)noexcept;
+      Connection &operator=(Connection &&old)noexcept;
+      inline int Connect();
+      inline bool IsConnected();
+      inline int Disconnect();
+      inline ssize_t Send(const String &msg, int flag = 0);
+      String Recv(size_t size, int flag = 0);
+      inline Address &GetAddress();
+    };
+    
+    class TcpConnection : public Connection {
+    private:
+    public:
+      TcpConnection() = default;
+      TcpConnection(const Address &addr, bool connect = true);
+      TcpConnection(const String &ip, const String &port, bool connect = true);
+      TcpConnection(const String &ip, std::uint16_t port, bool connect = true);
+    };
+    
+    class UdpConnection : public Connection {
+    private:
+    public:
+      UdpConnection() = default;
+      UdpConnection(const Address &addr, bool connect = false);
+      UdpConnection(const String &ip, const String &port, bool connect = false);
+      UdpConnection(const String &ip, std::uint16_t port, bool connect = false);
+      int Bind();
+      ssize_t SendTo(const String &msg, const Address &addr, int flag = 0);
+      std::pair<String, Address> RecvFrom(size_t size, int flag = 0);
+    };
+  }
 }
 
 #endif

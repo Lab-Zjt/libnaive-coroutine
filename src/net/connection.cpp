@@ -1,64 +1,115 @@
-#include "net/connection.h"
-#include "net/address.h"
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <fcntl.h>
+#include <sys/socket.h>
+#include "connection.h"
+#include "address.h"
 
-namespace soranet {
-  Connection::~Connection() {
-    if (!_isClosed)::close(_fd);
-    delete _addr;
-  }
-  Connection::Connection(const std::string &ip, std::uint16_t port, int fd, bool isIpv6) : _addr(new Address(ip, port)),
-    _isConnected(false) {
-    _fd = fd;
-    if (isIpv6) {
-      _bad = true;
-      return;
+namespace srlib {
+  namespace net {
+    Connection::Connection(const Address &addr, int fd, bool connect) : File(fd), _connected(false) {
+      if (fd < 0) {
+        fprintf(stderr, "Connection Construct Error: fd < 0.\n");
+        _addr = nullptr;
+        return;
+      }
+      _addr = new Address(addr);
+      if (connect) {
+        if (Connect() == 0)_connected = true;
+        else {
+          perror("connect");
+          _connected = false;
+        }
+      } else {
+        _connected = false;
+      }
+      fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
     }
-    if (fd < 0) _bad = true;
-    else fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-  }
-  Connection::Connection(const ::sockaddr &addr, int fd) : _addr(new Address(addr)), _isConnected(false) {
-    _fd = fd;
-    if (_fd < 0)_bad = true;
-    else fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-  }
-  Connection::Connection(const soranet::Address &addr, int fd) : _addr(new Address(addr)), _isConnected(false) {
-    _fd = fd;
-    if (_fd < 0)_bad = true;
-    else fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-  }
-  Address &Connection::getAddress() {return *_addr;}
-  std::shared_ptr<Connection> Dial(const std::string &ip, std::uint16_t port, bool isIpv6) {
-    return Dial(Address(ip, port), isIpv6);
-  }
-  std::shared_ptr<Connection> Dial(const Address &addr, bool isIpv6) {
-    int conn = ::socket(addr.getFamily(), SOCK_STREAM, 0);
-    ::connect(conn, addr.getSockaddr(), sizeof(::sockaddr));
-    return std::make_shared<Connection>(addr, conn);
-  }
-  std::shared_ptr<Connection> httpDial(const std::string &address, const std::string &port) {
-    ::addrinfo hints{};
-    ::addrinfo *res;
-    hints.ai_flags = 0;
-    hints.ai_protocol = 0;
-    hints.ai_addrlen = sizeof(sockaddr);
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_INET;
-    getaddrinfo(address.c_str(), port.c_str(), &hints, &res);
-    int conn;
-    for (auto ptr = res; ptr != nullptr; ptr = ptr->ai_next) {
-      if (ptr->ai_family == AF_INET) {
-        conn = socket(AF_INET, ptr->ai_socktype, ptr->ai_protocol);
-        ::connect(conn, ptr->ai_addr, ptr->ai_addrlen);
-        auto addr = *ptr->ai_addr;
-        freeaddrinfo(res);
-        return std::make_shared<Connection>(Address(addr), conn);
+    Connection::~Connection() {
+      delete _addr;
+      Close();
+    }
+    Connection::Connection(const srlib::String &ip, std::uint16_t port, int fd, bool connect) : Connection(Address(ip,
+                                                                                                                   port),
+                                                                                                           fd) {}
+    Connection::Connection(const srlib::String &ip, const srlib::String &port, int fd, bool connect) : Connection(
+      Address(ip, port),
+      fd) {}
+    Connection::Connection(srlib::net::Connection &&old)noexcept {
+      _addr = old._addr;
+      _connected = old._connected;
+      old._addr = nullptr;
+    }
+    Connection &Connection::operator=(srlib::net::Connection &&old)noexcept {
+      _addr = old._addr;
+      _connected = old._connected;
+      old._addr = nullptr;
+      return *this;
+    }
+    bool Connection::IsConnected() {return _connected;}
+    int Connection::Disconnect() {
+      if (_connected) {
+        auto res = Close();
+        if (res == 0)_connected = false;
       }
     }
-    freeaddrinfo(res);
-    return nullptr;
+    ssize_t Connection::Send(const srlib::String &msg, int flag) {
+      if (!_connected) {
+        fprintf(stderr, "This Socket is NOT Connected!\n");
+        return -1;
+      }
+      return ::send(fd(), msg.c_str(), msg.size(), flag);
+    }
+    String Connection::Recv(size_t size, int flag) {
+      if (!_connected) {
+        fprintf(stderr, "This Socket is NOT Connected!\n");
+        return String();
+      }
+      auto buf = new char[size];
+      auto count = ::recv(fd(), buf, size, flag);
+      String res(buf, count);
+      delete buf;
+      return res;
+    }
+    Address &Connection::GetAddress() {return *_addr;}
+    TcpConnection::TcpConnection(const srlib::net::Address &addr, bool connect) : Connection(addr,
+                                                                                             ::socket(addr.Family(),
+                                                                                                      SOCK_STREAM,
+                                                                                                      0),
+                                                                                             connect) {
+    }
+    TcpConnection::TcpConnection(const srlib::String &ip, std::uint16_t port, bool connect) : TcpConnection(Address(ip,
+                                                                                                                    port,
+                                                                                                                    connect)) {}
+    TcpConnection::TcpConnection(const srlib::String &ip, const srlib::String &port, bool connect) : TcpConnection(
+      Address(ip, port),
+      connect) {}
+    int Connection::Connect() {
+      if (_connected) {
+        fprintf(stderr, "This Socket is Already Connected!\n");
+      }
+      return ::connect(fd(), GetAddress().Sockaddr(), sizeof(sockaddr));
+    }
+    UdpConnection::UdpConnection(const srlib::net::Address &addr, bool connect) : Connection(addr,
+                                                                                             ::socket(addr.Family(),
+                                                                                                      SOCK_DGRAM,
+                                                                                                      0),
+                                                                                             connect) {}
+    UdpConnection::UdpConnection(const srlib::String &ip, std::uint16_t port, bool connect) : UdpConnection(Address(ip,
+                                                                                                                    port),
+                                                                                                            connect) {}
+    UdpConnection::UdpConnection(const srlib::String &ip, const srlib::String &port, bool connect) : UdpConnection(
+      Address(ip, port),
+      connect) {}
+    ssize_t UdpConnection::SendTo(const srlib::String &msg, const Address &addr, int flag) {
+      return ::sendto(fd(), msg.c_str(), msg.size(), flag, addr.Sockaddr(), sizeof(sockaddr));
+    }
+    std::pair<String, Address> UdpConnection::RecvFrom(size_t size, int flag) {
+      sockaddr addr{};
+      socklen_t len;
+      auto buf = new char[size];
+      auto count = ::recvfrom(fd(), buf, size, flag, &addr, &len);
+      String res(buf, count);
+      delete buf;
+      return std::make_pair(std::move(res), Address(addr));
+    }
+    int UdpConnection::Bind() {return ::bind(fd(), GetAddress().Sockaddr(), sizeof(sockaddr));}
   }
 }
