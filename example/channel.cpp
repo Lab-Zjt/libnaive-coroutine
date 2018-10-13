@@ -17,5 +17,6 @@ Coro_Main(argc, argv) {
     int j;
     chan >> j;
     printf("Receive %d From Channel.\n", j);
+    
   }
 }

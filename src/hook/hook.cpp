@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <cstdlib>
+#include <sys/timerfd.h>
 
 extern "C" {
 void *libc = nullptr;
@@ -17,6 +18,9 @@ connect_t origin_connect = nullptr;
 accept_t origin_accept = nullptr;
 recv_t origin_recv = nullptr;
 send_t origin_send = nullptr;
+usleep_t origin_usleep = nullptr;
+sleep_t origin_sleep = nullptr;
+nanosleep_t origin_nanosleep = nullptr;
 void hook_all() {
   libc = dlopen("libc.so.6", RTLD_LAZY);
   if (libc == nullptr) {
@@ -28,6 +32,9 @@ void hook_all() {
   origin_accept = accept_t(dlsym(libc, "accept"));
   origin_recv = recv_t(dlsym(libc, "recv"));
   origin_send = send_t(dlsym(libc, "send"));
+  origin_nanosleep = nanosleep_t(dlsym(libc, "nanosleep"));
+  origin_sleep = sleep_t(dlsym(libc, "sleep"));
+  origin_usleep = usleep_t(dlsym(libc, "usleep"));
   if (origin_read == nullptr || origin_write == nullptr || origin_connect == nullptr || origin_accept == nullptr ||
       origin_recv == nullptr || origin_send == nullptr) {
     exit(-1);
@@ -201,5 +208,55 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, sockfd, nullptr);
   cur->set_status(Context::Status::running);
   return res;
+}
+int usleep(useconds_t usec) {
+  auto mng = Scheduler::get_current_manager();
+  int fd = timerfd_create(CLOCK_REALTIME, 0);
+  itimerspec spec{};
+  spec.it_value.tv_sec = usec / 1000000;
+  spec.it_value.tv_nsec = usec * 1000 % 1000000000;
+  epoll_event ev{};
+  ev.data.ptr = mng->current();
+  ev.events = EPOLLIN;
+  timerfd_settime(fd, 0, &spec, nullptr);
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
+  mng->current()->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(mng->current());
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
+  close(fd);
+  mng->current()->set_status(Context::Status::running);
+}
+unsigned int sleep(unsigned int seconds) {
+  auto mng = Scheduler::get_current_manager();
+  int fd = timerfd_create(CLOCK_REALTIME, 0);
+  itimerspec spec{};
+  spec.it_value.tv_sec = seconds;
+  epoll_event ev{};
+  ev.data.ptr = mng->current();
+  ev.events = EPOLLIN;
+  timerfd_settime(fd, 0, &spec, nullptr);
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
+  mng->current()->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(mng->current());
+  timerfd_gettime(fd, &spec);
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
+  close(fd);
+  mng->current()->set_status(Context::Status::running);
+}
+int nanosleep(const struct timespec *req, struct timespec *rem) {
+  auto mng = Scheduler::get_current_manager();
+  int fd = timerfd_create(CLOCK_REALTIME, 0);
+  itimerspec spec{};
+  spec.it_value = *req;
+  epoll_event ev{};
+  ev.data.ptr = mng->current();
+  ev.events = EPOLLIN;
+  timerfd_settime(fd, 0, &spec, nullptr);
+  epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
+  mng->current()->set_status(Context::Status::IOblocking);
+  mng->manager()->resume(mng->current());
+  epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
+  close(fd);
+  mng->current()->set_status(Context::Status::running);
 }
 }
