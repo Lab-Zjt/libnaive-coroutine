@@ -36,7 +36,8 @@ void hook_all() {
   origin_sleep = sleep_t(dlsym(libc, "sleep"));
   origin_usleep = usleep_t(dlsym(libc, "usleep"));
   if (origin_read == nullptr || origin_write == nullptr || origin_connect == nullptr || origin_accept == nullptr ||
-      origin_recv == nullptr || origin_send == nullptr) {
+      origin_recv == nullptr || origin_send == nullptr || origin_usleep == nullptr || origin_sleep == nullptr ||
+      origin_nanosleep == nullptr) {
     exit(-1);
   }
 }
