@@ -10,19 +10,23 @@ using namespace std;
 int counter = 0;
 std::mutex mut;
 Coro_Main(argc, argv) {
-  String str;
+  vector<vector<String>> res;
   bool flag = false;
-  go([&str, &flag]() {
-    str = net::httpsGet("www.sorakasugano.com", {}, 409600);
+  go([&res, &flag]() {
+    auto str = net::httpsGet("www.sorakasugano.com", {}, 409600);
     auto content = str.split("\r\n");
-    for (auto &&line:content) {
-      println(line);
+    for (auto &line:content) {
+      res.emplace_back(line.split('\n'));
     }
     flag = true;
   });
   auto resp = net::httpsGet("www.bilibili.com", {}, 409600);
   cout << resp << endl;
   while (!flag) {}
-  cout << str << endl;
+  for (auto &line:res) {
+    for (auto &str:line) {
+      println(str);
+    }
+  }
   return 0;
 }

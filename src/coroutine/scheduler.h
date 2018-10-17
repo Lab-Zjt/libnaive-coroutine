@@ -6,16 +6,15 @@
 #include <atomic>
 #include <mutex>
 #include "manager.h"
+#include "corodef.h"
 
 class ContextManager;
 
 class Context;
 
-constexpr int max_thread = 5;
-
 class Scheduler {
   typedef int(*main_t)(int, char *[]);
-  ContextManager *_manager[max_thread];
+  ContextManager *_manager[MAX_THREAD_NUM];
   std::atomic<int> _index;
   bool _initializing;
 public:

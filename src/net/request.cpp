@@ -27,7 +27,6 @@ namespace srlib {
       auto domain = partition == std::string::npos ? url : url(0, partition);
       auto filename = partition == std::string::npos ? "/" : url(partition, url.size());
       auto addr = ParseIp(domain, "443");
-      println(addr.Ip(), addr.Port());
       auto conn = TlsConnection(addr);
       String request = "GET " + filename + " HTTP/1.1\r\n""Host: " + domain +
                        "\r\n""User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0\r\n"

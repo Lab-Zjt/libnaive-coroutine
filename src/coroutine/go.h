@@ -16,7 +16,6 @@ int coro_main(int argc, char *argv[]);
 
 #define Main() \
 int main(int argc,char* argv[]){\
-  hook_all();\
   srlib::net::SSLInit();\
   _scheduler = new Scheduler;\
   _scheduler->start(coro_main,argc,argv);\

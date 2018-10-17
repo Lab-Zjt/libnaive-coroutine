@@ -3,6 +3,7 @@
 
 #include "scheduler.h"
 #include "manager.h"
+#include "corodef.h"
 #include <ucontext.h>
 #include <functional>
 #include <map>
@@ -13,8 +14,6 @@ class Context;
 
 #define divptr(p, p1, p2) (p2) = (int)((p)&0x00000000ffffffff),(p1) = (int)(((p)>>32)&0x00000000ffffffff)
 #define makeptr(p1, p2) ((((std::uint64_t)(p1))<<32)|(((std::uint64_t)(p2))&0x00000000ffffffff))
-
-const int normal_stack_size = 1024 * 1024;
 
 class Context {
 public:
@@ -35,16 +34,15 @@ private:
 public:
   Context() = default;
   ~Context();
-  Context(std::function<void()> &&fn, size_t stack_size = normal_stack_size);
+  Context(std::function<void()> &&fn, size_t stack_size = NORMAL_STACK_SIZE);
   void resume(Context *from);
-  //void yiled();
   inline Status status() {return _status;}
   inline void set_status(Status st) {_status = st;}
 };
 
-template<size_t STACK_SIZE = normal_stack_size,typename Func, typename ...ARGS>
+template<size_t STACK_SIZE = NORMAL_STACK_SIZE, typename Func, typename ...ARGS>
 void go(Func &&func, ARGS &&...args) {
-  _scheduler->push_func(std::bind(func, args...),STACK_SIZE);
+  _scheduler->push_func(std::bind(func, args...), STACK_SIZE);
 };
 
 #endif

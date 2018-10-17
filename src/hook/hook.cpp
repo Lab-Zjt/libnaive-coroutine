@@ -42,6 +42,7 @@ void hook_all() {
   }
 }
 ssize_t read(int fd, void *buf, size_t count) {
+  if (origin_read == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_read(fd, buf, count);
@@ -74,10 +75,11 @@ ssize_t read(int fd, void *buf, size_t count) {
     }
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  cur->set_status(Context::Status::running);
+  //cur->set_status(Context::Status::running);
   return res;
 }
 ssize_t write(int fd, const void *buf, size_t count) {
+  if (origin_write == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_write(fd, buf, count);
@@ -114,6 +116,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
   return res;
 }
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  if (origin_connect == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_connect(sockfd, addr, addrlen);
@@ -143,6 +146,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
   return res;
 }
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+  if (origin_accept == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_accept(sockfd, addr, addrlen);
@@ -163,6 +167,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   return fd;
 }
 ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
+  if (origin_recv == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_recv(sockfd, buf, len, flags);
@@ -189,6 +194,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
   return res;
 }
 ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
+  if (origin_send == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   if (mng == nullptr) {
     return origin_send(sockfd, buf, len, flags);
@@ -215,6 +221,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   return res;
 }
 int usleep(useconds_t usec) {
+  if (origin_usleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
   itimerspec spec{};
@@ -232,6 +239,7 @@ int usleep(useconds_t usec) {
   mng->current()->set_status(Context::Status::running);
 }
 unsigned int sleep(unsigned int seconds) {
+  if (origin_sleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
   itimerspec spec{};
@@ -249,6 +257,7 @@ unsigned int sleep(unsigned int seconds) {
   mng->current()->set_status(Context::Status::running);
 }
 int nanosleep(const struct timespec *req, struct timespec *rem) {
+  if (origin_nanosleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
   itimerspec spec{};

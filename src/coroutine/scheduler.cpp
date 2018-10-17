@@ -3,12 +3,13 @@
 #include "context.h"
 #include <unistd.h>
 #include <csignal>
+#include "corodef.h"
 
 Scheduler *_scheduler = nullptr;
 Scheduler::Scheduler() : _index(0), _initializing(true) {}
 void Scheduler::init() {
   //create context manager.
-  for (int i = 0; i < max_thread; ++i) {
+  for (int i = 0; i < MAX_THREAD_NUM; ++i) {
     _manager[i] = new ContextManager(i);
   }
   _initializing = false;
@@ -18,7 +19,7 @@ void Scheduler::push_func(std::function<void()> &&func, size_t stack_size) {
   //mtx.lock();
   //select a manager, and it is stupid because sometimes all heavy task would push into a queue.
   auto mng = _manager[_index++];
-  if (_index >= max_thread) {
+  if (_index >= MAX_THREAD_NUM) {
     _index = 0;
   }
   if (mng->status() == ContextManager::Status::creating) {
@@ -44,7 +45,7 @@ ContextManager *Scheduler::get_current_manager() {
   }
   auto tid = pthread_self();
   //find manager by tid
-  for (int i = 0; i < max_thread; ++i) {
+  for (int i = 0; i < MAX_THREAD_NUM; ++i) {
     if (tid == _scheduler->_manager[i]->tid()) {
       return _scheduler->_manager[i];
     }
@@ -60,7 +61,7 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
   // this thread will check each manager per 50ms, if all manager is empty, the process will exit.
   timespec tv{};
   tv.tv_sec = 0;
-  tv.tv_nsec = 50000;
+  tv.tv_nsec = CHECK_ENDING_INTERVAL;
   siginfo_t st;
   sigset_t ss;
   sigaddset(&ss, SIGPIPE);
@@ -81,7 +82,7 @@ void Scheduler::start(main_t cmain, int argc, char *argv[]) {
 }
 bool Scheduler::empty() {
   //check queue is empty or not.
-  for (int i = 0; i < max_thread; ++i) {
+  for (int i = 0; i < MAX_THREAD_NUM; ++i) {
     if (_manager[i]->status() == ContextManager::Status::running) {
       return false;
     }

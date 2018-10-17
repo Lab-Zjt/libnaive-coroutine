@@ -522,7 +522,7 @@ namespace srlib {
       return *this;
     }
     String &substitute(const char *old, const char *rep, size_t count = std::string::npos) {
-      auto size = strlen(rep);
+      auto size = strlen(old);
       while (count-- > 0) {
         auto pos = _str.find(old);
         if (pos == std::string::npos) {

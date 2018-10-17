@@ -9,7 +9,6 @@ namespace srlib {
       OpenSSL_add_all_algorithms();
       SSL_library_init();
       SSL_load_error_strings();
-      printf("SSL Initialized!\n");
     }
     TlsConnection::TlsConnection(const Address &addr, bool connect) : TcpConnection(addr, connect) {
       _method = TLSv1_2_client_method();
