@@ -9,6 +9,6 @@
 
 #define SORA_USE_SSL 1
 
-
+#define Loop while(true)
 
 #endif

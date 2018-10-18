@@ -3,7 +3,10 @@
 #include "context.h"
 #include "co_yield.h"
 
-void CoroutineMutex::lock()  {
+static uint64_t wd_buf = 1;
+static uint64_t rd_buf = 0;
+
+void CoroutineMutex::lock() {
   while (!_mtx.try_lock()) {
     co_yield;
   }
