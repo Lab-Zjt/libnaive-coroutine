@@ -1,8 +1,6 @@
 #ifndef NAIVECORO_CONTEXT_H
 #define NAIVECORO_CONTEXT_H
 
-#include "scheduler.h"
-#include "manager.h"
 #include "corodef.h"
 #include <ucontext.h>
 #include <functional>
@@ -38,11 +36,6 @@ public:
   void resume(Context *from);
   inline Status status() {return _status;}
   inline void set_status(Status st) {_status = st;}
-};
-
-template<size_t STACK_SIZE = NORMAL_STACK_SIZE, typename Func, typename ...ARGS>
-void go(Func &&func, ARGS &&...args) {
-  _scheduler->push_func(std::bind(func, args...), STACK_SIZE);
 };
 
 #endif

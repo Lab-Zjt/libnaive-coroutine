@@ -52,7 +52,7 @@ void ContextManager::no_task_epoll() {
 }
 void ContextManager::wake_up() {
   if (_wake_up_mtx.try_lock()) {
-    auto b = write(_evfd, &ev_write_buf, sizeof(ev_write_buf));
+    write(_evfd, &ev_write_buf, sizeof(ev_write_buf));
     _wake_up_mtx.unlock();
   }
 }

@@ -5,7 +5,6 @@
 #include <functional>
 #include <atomic>
 #include <mutex>
-#include "manager.h"
 #include "corodef.h"
 
 class ContextManager;

@@ -1,7 +1,9 @@
 #include "address.h"
 #include "utility/endiantr.h"
+#include "utility/exstring.h"
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <cstring>
 
 namespace srlib {
   namespace net {

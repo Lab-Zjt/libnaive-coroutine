@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(coronet)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS "-Wall -Wno-sign-compare -Wno-pointer-arith")
 
 include_directories(src)

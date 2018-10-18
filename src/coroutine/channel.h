@@ -4,6 +4,7 @@
 #include <queue>
 #include "go.h"
 #include "co_mutex.h"
+#include "co_yield.h"
 
 template<typename T>
 class Channel {
@@ -25,7 +26,7 @@ public:
       _mtx.lock();
       if (_queue.size() >= _capacity) {
         _mtx.unlock();
-        co_yiled;
+        co_yield;
       } else {
         break;
       }

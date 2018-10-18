@@ -1,7 +1,11 @@
 #ifndef UTILITY_ADDRESS_H
 #define UTILITY_ADDRESS_H
 
-#include "utility/exstring.h"
+#include <cstdint>
+
+namespace srlib {
+  class String;
+}
 
 struct sockaddr;
 namespace srlib {

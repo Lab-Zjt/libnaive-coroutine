@@ -1,4 +1,5 @@
 #include <coroutine/go.h>
+#include <coroutine/co_yield.h>
 #include <cassert>
 #include <zconf.h>
 #include <thread>
@@ -14,7 +15,7 @@ void func1(std::uint64_t max) {
       printf("func1: %lu\r", sum);
     }
     if (i % 500000 == 0){
-      co_yiled;
+      co_yield;
     }
   }
 }

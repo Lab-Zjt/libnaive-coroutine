@@ -1,5 +1,6 @@
 #include "parse.h"
 #include "address.h"
+#include "utility/exstring.h"
 #include <netdb.h>
 
 namespace srlib {

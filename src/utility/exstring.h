@@ -602,6 +602,7 @@ namespace srlib {
       substitute("%lf", ftoa(f), 1);
       return *this;
     }
+#if __cplusplus >= 201703L
     template<typename T>
     String &Args(T &&t) {
       typedef typename std::remove_cv<typename std::remove_reference<T>::type>::type U;
@@ -641,6 +642,7 @@ namespace srlib {
       Args(t);
       return Args(args...);
     }
+#endif
   };
 };
 
