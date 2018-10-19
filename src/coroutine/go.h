@@ -2,7 +2,6 @@
 #define CORONET_GO_H
 
 #include "scheduler.h"
-#include "../hook/hook.h"
 
 int coro_main(int argc, char *argv[]);
 #if SORA_USE_SSL != 0
@@ -12,7 +11,6 @@ int coro_main(int argc, char *argv[]);
 #define Main() \
 int main(int argc,char* argv[]){\
   srlib::net::SSLInit();\
-  hook_all();\
   _scheduler = new Scheduler;\
   _scheduler->start(coro_main,argc,argv);\
   return 0;\
