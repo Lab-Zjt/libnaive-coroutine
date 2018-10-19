@@ -2,7 +2,7 @@
 #define CORONET_CHANNEL_H
 
 #include <queue>
-#include "co_mutex.h"
+#include "co_cond.h"
 #include "scheduler.h"
 #include "manager.h"
 #include "context.h"
@@ -11,7 +11,7 @@ template<typename T>
 class Channel {
 private:
   std::queue<T> _queue;
-  std::queue<std::pair<Context *, ContextManager *>> _wakeup_queue;
+  CondVar _cv;
   CoroutineMutex _mtx;
   size_t _capacity = std::numeric_limits<size_t>::max();
 public:
@@ -27,19 +27,14 @@ public:
     while (true) {
       _mtx.lock();
       if (_queue.size() >= _capacity) {
-        Scheduler::get_current_manager()->current()->set_status(Context::Status::IOblocking);
-        _wakeup_queue.emplace(std::make_pair(Scheduler::get_current_manager()->current(),
-                                             Scheduler::get_current_manager()));
         _mtx.unlock();
-        Scheduler::get_current_manager()->manager()->resume(Scheduler::get_current_manager()->current());
+        _cv.wait();
       } else {
         break;
       }
     }
-    if (_queue.size() == 0 && _wakeup_queue.size() != 0) {
-      _wakeup_queue.front().first->set_status(Context::Status::ready);
-      _wakeup_queue.front().second->wake_up();
-      _wakeup_queue.pop();
+    if (_queue.size() == 0) {
+      _cv.signal();
     }
     _queue.push(data);
     _mtx.unlock();
@@ -50,18 +45,13 @@ public:
     while (true) {
       _mtx.lock();
       if (_queue.size() == 0) {
-        Scheduler::get_current_manager()->current()->set_status(Context::Status::IOblocking);
-        _wakeup_queue.emplace(std::make_pair(Scheduler::get_current_manager()->current(),
-                                             Scheduler::get_current_manager()));
         _mtx.unlock();
-        Scheduler::get_current_manager()->manager()->resume(Scheduler::get_current_manager()->current());
+        _cv.wait();
       } else break;
     }
     T tmp = std::move(_queue.front());
-    if (_queue.size() == _capacity && _wakeup_queue.size() != 0) {
-      _wakeup_queue.front().first->set_status(Context::Status::ready);
-      _wakeup_queue.front().second->wake_up();
-      _wakeup_queue.pop();
+    if (_queue.size() == _capacity) {
+      _cv.signal();
     }
     _queue.pop();
     _mtx.unlock();
@@ -73,19 +63,14 @@ public:
     while (true) {
       _mtx.lock();
       if (_queue.size() >= _capacity) {
-        Scheduler::get_current_manager()->current()->set_status(Context::Status::IOblocking);
-        _wakeup_queue.emplace(std::make_pair(Scheduler::get_current_manager()->current(),
-                                             Scheduler::get_current_manager()));
         _mtx.unlock();
-        Scheduler::get_current_manager()->manager()->resume(Scheduler::get_current_manager()->current());
+        _cv.wait();
       } else {
         break;
       }
     }
-    if (_queue.size() == 0 && _wakeup_queue.size() != 0) {
-      _wakeup_queue.front().first->set_status(Context::Status::ready);
-      _wakeup_queue.front().second->wake_up();
-      _wakeup_queue.pop();
+    if (_queue.size() == 0) {
+      _cv.signal();
     }
     _queue.emplace(data);
     _mtx.unlock();
@@ -96,18 +81,13 @@ public:
     while (true) {
       rhs._mtx.lock();
       if (rhs._queue.size() == 0) {
-        Scheduler::get_current_manager()->current()->set_status(Context::Status::IOblocking);
-        rhs._wakeup_queue
-           .emplace(std::make_pair(Scheduler::get_current_manager()->current(), Scheduler::get_current_manager()));
         rhs._mtx.unlock();
-        Scheduler::get_current_manager()->manager()->resume(Scheduler::get_current_manager()->current());
+        rhs._cv.wait();
       } else break;
     }
     lhs = std::move(rhs._queue.front());
-    if (rhs._queue.size() == rhs._capacity && rhs._wakeup_queue.size() != 0) {
-      rhs._wakeup_queue.front().first->set_status(Context::Status::ready);
-      rhs._wakeup_queue.front().second->wake_up();
-      rhs._wakeup_queue.pop();
+    if (rhs._queue.size() == rhs._capacity) {
+      rhs._cv.signal();
     }
     rhs._queue.pop();
     rhs._mtx.unlock();
@@ -118,18 +98,13 @@ public:
     while (true) {
       lhs._mtx.lock();
       if (lhs._queue.size() == 0) {
-        Scheduler::get_current_manager()->current()->set_status(Context::Status::IOblocking);
-        lhs._wakeup_queue
-           .emplace(std::make_pair(Scheduler::get_current_manager()->current(), Scheduler::get_current_manager()));
         lhs._mtx.unlock();
-        Scheduler::get_current_manager()->manager()->resume(Scheduler::get_current_manager()->current());
+        lhs._cv.wait();
       } else break;
     }
     rhs = std::move(lhs._queue.front());
-    if (lhs._queue.size() == lhs._capacity && lhs._wakeup_queue.size() != 0) {
-      lhs._wakeup_queue.front().first->set_status(Context::Status::ready);
-      lhs._wakeup_queue.front().second->wake_up();
-      lhs._wakeup_queue.pop();
+    if (lhs._queue.size() == lhs._capacity) {
+      lhs._cv.signal();
     }
     lhs._queue.pop();
     lhs._mtx.unlock();
