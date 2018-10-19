@@ -221,6 +221,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
   return res;
 }
 int usleep(useconds_t usec) {
+  if (usec == 0) return 0;
   if (origin_usleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
@@ -237,8 +238,10 @@ int usleep(useconds_t usec) {
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   close(fd);
   mng->current()->set_status(Context::Status::running);
+  return 0;
 }
 unsigned int sleep(unsigned int seconds) {
+  if (seconds == 0)return 0;
   if (origin_sleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
@@ -255,8 +258,10 @@ unsigned int sleep(unsigned int seconds) {
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   close(fd);
   mng->current()->set_status(Context::Status::running);
+  return 0;
 }
 int nanosleep(const struct timespec *req, struct timespec *rem) {
+  if (req->tv_nsec == 0 && req->tv_sec == 0)return 0;
   if (origin_nanosleep == nullptr)hook_all();
   auto mng = Scheduler::get_current_manager();
   int fd = timerfd_create(CLOCK_REALTIME, 0);
@@ -272,5 +277,6 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
   epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   close(fd);
   mng->current()->set_status(Context::Status::running);
+  return 0;
 }
 }
