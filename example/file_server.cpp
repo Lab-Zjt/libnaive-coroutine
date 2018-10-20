@@ -10,13 +10,6 @@ using namespace srlib;
 
 const char *title = "Upload";
 Coro_Main(argc, argv) {
-  /*auto conn = net::TcpConnection("67.209.179.32", "25252");
-  conn.Write("GET / HTTP/1.1\r\n"
-             "Host: 67.209.179.32:25252\r\n"
-             "User-Agent: curl\r\n\r\n");
-  auto str = conn.Read(1024);
-  println(str);
-  auto req = net::HTTPResponse::Unserialize(str);*/
   auto listener = net::Listen(net::Address("0.0.0.0", 10101));
   auto index_page = ReadRegularFile("index.html").substitute("{{.Title}}", title);
   auto upload_page = ReadRegularFile("file.html").substitute("{{.Title}}", title);
