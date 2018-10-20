@@ -13,13 +13,6 @@ namespace srlib {
   namespace net {
     void SSLInit();
     
-    class SSLInitializer {
-    public:
-      SSLInitializer() {SSLInit();}
-    };
-    
-    //static SSLInitializer& init = Singleton<SSLInitializer>::GetInstance();
-    
     class TlsConnection : public TcpConnection {
     private:
       SSL *_ssl = nullptr;

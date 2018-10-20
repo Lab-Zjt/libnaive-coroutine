@@ -15,7 +15,7 @@ namespace srlib {
       _ctx = SSL_CTX_new(_method);
       _ssl = SSL_new(_ctx);
       SSL_set_fd(_ssl, fd());
-      if (SSL_connect(_ssl) < 0) {
+      if (SSL_connect(_ssl) <= 0) {
         ERR_print_errors_fp(stdout);
       }
     }
@@ -50,7 +50,6 @@ namespace srlib {
       auto count = 0;
       while (count != size) {
         auto realsize = SSL_read(_ssl, buf + count, size - count);
-        //rlog(realsize);
         // TODO : handle read failed
         if (realsize == 0 || realsize == -1) break;
         count += realsize;
@@ -75,7 +74,6 @@ namespace srlib {
       auto count = 0;
       while (count != size) {
         auto realsize = SSL_write(_ssl, cstr + count, size - count);
-        //wlog(realsize);
         //TODO : handle write failed
         if (realsize < 16384)return count;
         if (realsize == -1)return count;

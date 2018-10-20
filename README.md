@@ -16,15 +16,64 @@
 
 main函数已经被#define掉了，程序入口改为Coro_Main(argc,argv)宏。
 
+实现了Channel。
+
+实现了Mutex，ConditionVariable，Barrier，目前来看似乎能正常工作。
+
+### literal
+
+B,KB,MB,GB
+
+分别对应2^0,2^10,2^20,2^30
+
+### go
+
+Usage:
+
+```C++
+go<4MB>([](){
+  srlib::println("hello,world");
+});
+```
+
+模板参数为栈大小，默认为4KB（可以通过corodef.h修改）。第一个参数为新协程的入口函数，之后的参数为入口函数的参数。
+
+### channel
+
+Usage:
+
+```C++
+Channel<int> channel(1);// Channel<T>(buffer_size);
+go([](){
+  for(int i = 0; i < 100 ; ++i){
+    channel << i;
+    srlib::println("Send",i);
+  }
+}); 
+go([](){
+  for(int i = 0; i < 100 ; ++i){
+    //auto t = channel();
+    int t;
+    t << channel;
+    srlib::println("Recv",t);
+  }
+});
+```
+
+如果当前channel中没有数据，从当前channel中读取数据将会导致当前协程阻塞。
+
+如果当前channel的缓冲区已满，向当前channel写入数据将会导致当前协程阻塞。
+
 ## 注意事项
 
 目前hook的系统调用：
-read,write,connect,accept,recv,send.
+`read`,`write`,`connect`,`accept`,`recv`,`send`.
 
 虽然不是系统调用但是会阻塞线程的：
-sleep,usleep,nanosleep.
+`sleep`,`usleep`,`nanosleep`.
 
-sleep类函数均已hook成令当前协程睡眠一段时间，期间可以执行其他协程。
-
+当前协程阻塞时，程序将会继续执行其他协程。
 
 SSL_read()可能不能正常工作，例如`httpsGET("www.baidu.com")`的时候，其每次读取的大小远小于16384字节,而httpsGET其他大部分网站时均是每次读取16384字节直至无内容可读，故目前判断`tlsRead()`结束的条件为读取字节数小于16384。由于`SSL_read()`是阻塞的（目未找到能在当前设计下能用的使`SSL_read()`不阻塞的解决方法），故只能通过`SSL_read()<16384`的方法来判断结束。
+
+`getaddrinfo()`函数会通过`alloca()`在栈上分配缓冲区，所以对会执行`getaddrinfo()`的协程请至少分配约16KB的缓冲区。
