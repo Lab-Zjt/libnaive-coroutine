@@ -2,6 +2,8 @@
 #include "address.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <coroutine/scheduler.h>
+#include <coroutine/manager.h>
 
 namespace srlib {
   namespace net {
@@ -51,13 +53,13 @@ namespace srlib {
       while (count != size) {
         auto realsize = SSL_read(_ssl, buf + count, size - count);
         // TODO : handle read failed
-        if (realsize == 0 || realsize == -1) break;
+        if (realsize == 0 || realsize == -1)break;
         count += realsize;
         {
           printf("%d/%lu\r", count, size);
           fflush(stdout);
         }
-        // FIXME : usually SSL_read() return 16384 and if return value < 16384 mean all content was read, but fxxk www.baidu.com will not return 16384. Now it cannot handle non-block socket.
+        // FIXME : usually SSL_read() return 16384 and if return value < 16384 mean all content has been read, but fxxk www.baidu.com will not return 16384. Now it cannot handle non-block socket.
         if (realsize < 16384)break;
       }
       if (count < 0) {

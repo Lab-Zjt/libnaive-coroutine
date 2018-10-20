@@ -54,28 +54,30 @@ ssize_t read(int fd, void *buf, size_t count) {
   ssize_t res = 0;
   struct stat stat_buf{};
   fstat(fd, &stat_buf);
+  // If fd is not a socket, use origin_read.
   if (!S_ISSOCK(stat_buf.st_mode)) {
-    while (res != count) {
+    /*while (res != count) {
       auto realsize = origin_read(fd, buf + res, count - res);
       if (realsize == 0 || realsize == -1) break;
       res += realsize;
-    }
+    }*/
+    res = origin_read(fd, buf, count);
   } else {
+    // If fd is a socket.
+    // - Try to read the socket.
+    res = origin_read(fd, buf, count);
+    // - If socket can be read or error occurred, return.
+    if (res != -1 || errno != EAGAIN) {return res;}
+    // - Else add fd to epoll and yield, wait epoll return.
     epoll_event ev{};
     ev.events = EPOLLIN;
     ev.data.ptr = cur;
     epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
     cur->set_status(Context::Status::IOblocking);
     mng->manager()->resume(cur);
-    res = 0;
-    while (res != count) {
-      auto realsize = origin_read(fd, buf + res, count - res);
-      if (realsize == 0 || realsize == -1) break;
-      res += realsize;
-    }
+    res = read(fd, buf, count);
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  //cur->set_status(Context::Status::running);
   return res;
 }
 ssize_t write(int fd, const void *buf, size_t count) {
@@ -92,27 +94,19 @@ ssize_t write(int fd, const void *buf, size_t count) {
   fstat(fd, &stat_buf);
   ssize_t res = 0;
   if (!S_ISSOCK(stat_buf.st_mode)) {
-    while (res != count) {
-      auto realsize = origin_write(fd, buf + res, count - res);
-      if (realsize == 0 || realsize == -1) break;
-      res += realsize;
-    }
+    res = origin_write(fd, buf, count);
   } else {
+    res = write(fd, buf, count);
+    if (res != -1 || errno != EAGAIN)return res;
     epoll_event ev{};
     ev.events = EPOLLOUT;
     ev.data.ptr = cur;
     epoll_ctl(mng->epfd(), EPOLL_CTL_ADD, fd, &ev);
     cur->set_status(Context::Status::IOblocking);
     mng->manager()->resume(cur);
-    res = 0;
-    while (res != count) {
-      auto realsize = ::origin_write(fd, buf + res, count - res);
-      if (realsize == 0 || realsize == -1) break;
-      res += realsize;
-    }
+    res = origin_write(fd, buf, count);
     epoll_ctl(mng->epfd(), EPOLL_CTL_DEL, fd, nullptr);
   }
-  cur->set_status(Context::Status::running);
   return res;
 }
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
