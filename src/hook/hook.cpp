@@ -96,7 +96,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
   if (!S_ISSOCK(stat_buf.st_mode)) {
     res = origin_write(fd, buf, count);
   } else {
-    res = write(fd, buf, count);
+    res = origin_write(fd, buf, count);
     if (res != -1 || errno != EAGAIN)return res;
     epoll_event ev{};
     ev.events = EPOLLOUT;
