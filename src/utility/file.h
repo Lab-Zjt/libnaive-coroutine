@@ -3,6 +3,7 @@
 
 #include "strconv.h"
 #include "exstring.h"
+#include "array.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -33,7 +34,9 @@ namespace srlib {
     ~FileInfo() {delete _st;}
     FileInfo(const String &dir, const String &name) : _name(name), _path(dir + '/' + name), _st(new struct stat) {
       if (::stat(_path.c_str(), _st) != 0) {
-        perror("stat");
+        //perror("stat");
+        delete _st;
+        _st = nullptr;
       }
     }
     FileInfo(const FileInfo &rhs) {
@@ -72,6 +75,9 @@ namespace srlib {
     inline bool IsSocket() const {return S_ISSOCK(_st->st_mode);}
     inline bool IsLink() const {return S_ISLNK(_st->st_mode);}
     inline bool IsPipe() const {return S_ISFIFO(_st->st_mode);}
+    inline bool IsValid() const {return _st != nullptr;}
+    //Compare
+    bool operator<(const FileInfo &rhs) const {return _name < rhs._name;}
   };
   
   /// File is the abstraction of file descriptor in Unix and Unix-like System.
@@ -117,19 +123,41 @@ namespace srlib {
     //Set
     void SetFd(int fd) {_fd = fd;}
     //I/O
-    String Read(size_t size) const {
+    virtual String Read(size_t size) const {
       auto buf = new char[size];
       auto count = ::read(_fd, buf, size);
       String res(buf, count);
       delete buf;
       return res;
     }
-    ssize_t Write(const String &str) const {
+    virtual ssize_t Read(Array<char> &buf) {
+      return ::read(fd(), buf.Data(), buf.Size());
+    }
+    virtual ssize_t Read(Array<uint8_t> &buf) {
+      return ::read(fd(), buf.Data(), buf.Size());
+    }
+    virtual ssize_t Read(Slice<char> buf) {
+      return ::read(fd(), buf.Data(), buf.Size());
+    }
+    virtual ssize_t Read(Slice<uint8_t> buf) {
+      return ::read(fd(), buf.Data(), buf.Size());
+    }
+    virtual ssize_t Write(const String &str) const {
       return ::write(_fd, str.c_str(), str.size());
     }
+    virtual ssize_t Write(const Array<char> &buf) {
+      return ::write(_fd, buf.Data(), buf.Size());
+    }
+    virtual ssize_t Write(const Array<uint8_t> &buf) {
+      return ::write(_fd, buf.Data(), buf.Size());
+    }
+    virtual ssize_t Write(const Slice<char> &buf) {
+      return ::write(_fd, buf.Data(), buf.Size());
+    }
+    virtual ssize_t Write(const Slice<uint8_t> &buf) {
+      return ::write(_fd, buf.Data(), buf.Size());
+    }
     int Close() const {return ::close(_fd);}
-    virtual void OnReadable() {}
-    virtual void OnWritable() {}
     //Status
     inline off_t Size() const {return _st->st_size;}
     inline bool IsValid() const {return _fd >= 0;}
@@ -216,7 +244,6 @@ namespace srlib {
       ::read(fd(), &_buf, sizeof(_buf));
       return _buf;
     }
-    void OnReadable() override {Renew();}
   };
   
   /// Directory is the abstraction of directory.
@@ -241,7 +268,8 @@ namespace srlib {
         ::mkdir(dirpath.c_str(), mode);
         _dir = ::opendir(dirpath.c_str());
       }
-      _fd = dirfd(_dir);
+      if (_dir == nullptr)_fd = -1;
+      else _fd = dirfd(_dir);
     }
     ~Directory() {
       ::closedir(_dir);
@@ -283,7 +311,8 @@ namespace srlib {
       while (true) {
         auto file = Read();
         if (file.Name().empty())break;
-        if (file.IsDir())continue;
+        if (!file.IsValid())continue;
+        if (file.Name() == "." || file.Name() == "..")continue;
         fn(std::move(file), args...);
       }
     };
@@ -292,10 +321,11 @@ namespace srlib {
       while (true) {
         auto file = Read();
         if (file.Name().empty())break;
+        if (!file.IsValid())continue;
         if (file.IsDir()) {
           if (file.Name() != "." && file.Name() != "..") {
             Directory next(file.Path());
-            next.RecursiveWalk(fn, args...);
+            if (next.IsValid())next.RecursiveWalk(fn, args...);
           }
           continue;
         }

@@ -1,15 +1,14 @@
 #include <utility/io.h>
-#include "utility/exstring.h"
+#include "request.h"
 #include "connector.h"
 #include "connection.h"
 #include "address.h"
 #include "tls_connection.h"
 #include "parse.h"
-#include "request.h"
 
 namespace srlib {
   namespace net {
-    String HTTPRequest::Serialize() {
+    String HTTPRequest::Serialize() const {
       auto res = method + ' ' + page + " HTTP/" + version + "\r\n";
       for (auto &field : header) {
         res += field.first + ": " + field.second + "\r\n";
@@ -20,8 +19,8 @@ namespace srlib {
     }
     HTTPRequest HTTPRequest::Unserialize(const srlib::String &req) {
       HTTPRequest res;
-      if (req.empty())
-        return res;
+      res.Version("").Page("").Method("");
+      if (req.empty())return res;
       auto header_end = req.find("\r\n\r\n");
       auto header = req(0, header_end).split("\r\n");
       res.content = req(header_end + 4, req.size());
@@ -34,7 +33,7 @@ namespace srlib {
       }
       return res;
     }
-    String HTTPResponse::Serialize() {
+    String HTTPResponse::Serialize() const {
       auto res = "HTTP/" + version + ' ' + status_code + ' ' + reason_phrase + "\r\n";
       for (auto &field : header) {
         res += field.first + ": " + field.second + "\r\n";
@@ -45,6 +44,8 @@ namespace srlib {
     }
     HTTPResponse HTTPResponse::Unserialize(const srlib::String &req) {
       HTTPResponse res;
+      res.StatusCode("").Version("").ReasonPhrase("");
+      if (req.empty())return res;
       auto header_end = req.find("\r\n\r\n");
       auto header = req(0, header_end).split("\r\n");
       res.content = req(header_end + 4, req.size());
@@ -83,10 +84,96 @@ namespace srlib {
                        "\r\n""User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0\r\n"
                        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n"
                        "Connection: keep-alive\r\n" + append + "Accept-Encoding: deflate\r\n\r\n";
-      conn.TlsWrite(request);
-      auto res = conn.TlsRead(maxSize);
+      conn.Write(request);
+      auto res = conn.Read(maxSize);
       conn.Close();
       return res;
+    }
+    net::HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req) {
+      conn.Write(req.Serialize());
+      Array<char> buf(8192);
+      HTTPResponse rep;
+      for (long off = 0;;) {
+        auto rd = conn.Read(buf(off));
+        // Handle Connection Close/Error
+        if (rd <= 0) {
+          rep = HTTPResponse::Unserialize(buf(0, off).ToString());
+          break;
+        }
+        // Parse Header
+        off += rd;
+        auto header_len = buf(0, off).Find("\r\n\r\n");
+        // - If header is incomplete, continue to read
+        if (header_len == size_t(-1))continue;
+        header_len += 4;
+        // - Header Read Finish, Parse Header
+        rep = HTTPResponse::Unserialize(buf(0, header_len).ToString());
+        // Handle Content-Length
+        if (rep.header.find("Content-Length") != rep.header.end()) {
+          auto continue_read = rep.header["Content-Length"].to_integer();
+          // Save data to response.content
+          rep.content.reserve(continue_read);
+          rep.content = buf(header_len, off).ToString();
+          // - Read Finish
+          if (continue_read == rep.content.size()) break;
+          // - Continue to read
+          for (continue_read -= rep.content.size(); continue_read != 0;) {
+            rd = conn.Read(buf(0));
+            if (rd <= 0) {
+              break;
+            } else {
+              continue_read -= rd;
+              rep.content += buf(0, rd).ToString();
+            }
+          }
+          break;
+        }
+          // Handle Transfer-Encoding = Chunked
+        else if (rep.header["Transfer-Encoding"] == "chunked"_s) {
+          auto rd_off = header_len;
+          while (true) {
+            if (off > rd_off) {
+              // Read Chunk Size
+              auto size_end = buf(rd_off).Find("\r\n");
+              if (size_end == 0) {
+                rd_off += 2;
+                continue;
+              } else if (size_end == size_t(-1)) {
+                break;
+              }
+              auto chunk_size = std::stoul(buf(rd_off, rd_off + size_end).ToString().const_std_string_reference(),
+                                           nullptr,
+                                           16);
+              if (chunk_size == 0)break;
+              // Move Read_Offset , +2 mean "\r\n"
+              rd_off += size_end + 2;
+              // Read chunk until end
+              while (chunk_size > off - rd_off) {
+                auto readable = off - rd_off;
+                rep.content += buf(rd_off, rd_off + readable).ToString();
+                chunk_size -= readable;
+                rd_off = 0, off = 0;
+                rd = conn.Read(buf);
+                if (rd <= 0)break;
+                else off += rd;
+              }
+              // Chunk end with "\r\n", so move Read_Offset +2
+              if (chunk_size <= off - rd_off) {
+                rep.content += buf(rd_off, rd_off + chunk_size).ToString();
+                rd_off += chunk_size + 2;
+              }
+            } else {
+              // Now Read_Offset == Offset, it mean buffer has been read overall. so read the fd again.
+              rd_off = 0, off = 0;
+              rd = conn.Read(buf);
+              if (rd <= 0)break;
+              else off += rd;
+            }
+          }
+          break;
+        }
+      }
+      return rep;
     }
   }
 }
