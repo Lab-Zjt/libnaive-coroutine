@@ -14,15 +14,11 @@ Coro_Main(argc, argv) {
   vector<vector<String>> res;
   bool flag = false;
   go<16KB>([&res, &flag]() {
-    auto str = net::httpsGet("www.bilibili.com", "", 409600);
-    auto content = str.split("\r\n");
-    for (auto &line:content) {
-      res.emplace_back(line.split('\n'));
-    }
+    auto str = net::httpsGet("www.bilibili.com");
     flag = true;
   });
-  //auto resp = net::httpsGet("www.bilibili.com", "", 409600);
-  //cout << resp << endl;
+  auto resp = net::httpsGet("www.baidu.com");
+  cout << resp << endl;
   while (!flag) {}
   for (auto &line:res) {
     for (auto &str:line) {

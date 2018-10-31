@@ -3,9 +3,6 @@
 
 #include <queue>
 #include "co_cond.h"
-#include "scheduler.h"
-#include "manager.h"
-#include "context.h"
 
 template<typename T>
 class Channel {
