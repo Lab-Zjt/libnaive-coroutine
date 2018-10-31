@@ -74,20 +74,34 @@ namespace srlib {
       conn->Close();
       return res;
     }
-    String httpsGet(const String &url, const String &append, std::uint64_t maxSize) {
+    String httpsGet(const String &url, const std::vector<String> &append) {
       auto partition = url.find('/');
       auto domain = partition == std::string::npos ? url : url(0, partition);
       auto filename = partition == std::string::npos ? "/" : url(partition, url.size());
       auto addr = ParseIp(domain, "443");
       auto conn = TlsConnection(addr);
-      String request = "GET " + filename + " HTTP/1.1\r\n""Host: " + domain +
-                       "\r\n""User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0\r\n"
-                       "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n"
-                       "Connection: keep-alive\r\n" + append + "Accept-Encoding: deflate\r\n\r\n";
-      conn.Write(request);
-      auto res = conn.Read(maxSize);
+      net::HTTPRequest req{};
+      req.AutoFill().Page(filename).Header("Host", domain);
+      if (!append.empty())
+        for (int i = 0; i < append.size() - 1; i += 2) {
+          req.Header(append[i], append[i + 1]);
+        }
+      auto rep = net::SendHTTPRequest(conn, req);
       conn.Close();
-      return res;
+      return rep.content;
+    }
+    String httpsGet(TlsConnection &conn, const String &url, const std::vector<String> &append) {
+      auto partition = url.find('/');
+      auto domain = partition == std::string::npos ? url : url(0, partition);
+      auto filename = partition == std::string::npos ? "/" : url(partition, url.size());
+      net::HTTPRequest req{};
+      req.AutoFill().Page(filename).Header("Host", domain);
+      if (!append.empty())
+        for (int i = 0; i < append.size() - 1; i += 2) {
+          req.Header(append[i], append[i + 1]);
+        }
+      auto rep = net::SendHTTPRequest(conn, req);
+      return rep.content;
     }
     net::HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req) {
       conn.Write(req.Serialize());

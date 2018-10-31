@@ -7,6 +7,7 @@ namespace srlib {
   class String;
   namespace net {
     class Connection;
+    class TlsConnection;
     
     struct HTTPRequest {
       String method;
@@ -82,8 +83,15 @@ namespace srlib {
       static HTTPResponse Unserialize(const String &req);
     };
     
+    template<typename ...ARGS>
+    std::vector<String> Vec(ARGS &&...args) {
+      std::vector<String> res;
+      char arr[] = {(res.push_back(args), 0)...};
+      return res;
+    }
     String httpGet(const String &url, const String &append = {}, std::uint64_t maxSize = 1024 * 1024);
-    String httpsGet(const String &url, const String &append = {}, std::uint64_t maxSize = 1024 * 1024);
+    String httpsGet(const String &url, const std::vector<String> &append = {});
+    String httpsGet(TlsConnection &conn, const String &url, const std::vector<String> &append = {});
     HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req);
   }
 }
