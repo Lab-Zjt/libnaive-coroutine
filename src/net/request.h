@@ -7,6 +7,7 @@ namespace srlib {
   class String;
   namespace net {
     class Connection;
+    
     class TlsConnection;
     
     struct HTTPRequest {
@@ -51,9 +52,9 @@ namespace srlib {
     };
     
     struct HTTPResponse {
-      String version = "1.1";
-      String status_code = "200";
-      String reason_phrase = "OK";
+      String version;
+      String status_code;
+      String reason_phrase;
       std::map<String, String> header;
       String content;
       String Serialize() const;
@@ -82,10 +83,12 @@ namespace srlib {
       }
       static HTTPResponse Unserialize(const String &req);
     };
+    
     String httpGet(const String &url, const String &append = {}, std::uint64_t maxSize = 1024 * 1024);
     String httpsGet(const String &url, const std::vector<String> &append = {});
     String httpsGet(TlsConnection &conn, const String &url, const std::vector<String> &append = {});
     HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req);
+    HTTPRequest RecvHTTPRequest(Connection &conn);
   }
 }
 

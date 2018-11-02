@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/eventfd.h>
 #include <dirent.h>
+#include <sys/ioctl.h>
 
 namespace srlib {
   class FileMode {
@@ -156,6 +157,11 @@ namespace srlib {
     }
     virtual ssize_t Write(const Slice<uint8_t> &buf) {
       return ::write(_fd, buf.Data(), buf.Size());
+    }
+    virtual int Pending() {
+      int pending;
+      ioctl(_fd, FIONREAD, &pending);
+      return pending;
     }
     int Close() const {return ::close(_fd);}
     //Status

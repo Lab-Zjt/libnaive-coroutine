@@ -43,6 +43,7 @@ namespace srlib {
       ssize_t Write(const Array<uint8_t> &buf) override;
       ssize_t Write(const Slice<char> &buf) override;
       ssize_t Write(const Slice<uint8_t> &buf) override;
+      int Pending() override;
     };
   }
 }

@@ -85,5 +85,8 @@ namespace srlib {
     ssize_t TlsConnection::Write(const srlib::Slice<uint8_t> &buf) {
       return ::SSL_write(_ssl, buf.Data(), buf.Size());
     }
+    int TlsConnection::Pending() {
+      return SSL_pending(_ssl);
+    }
   }
 }

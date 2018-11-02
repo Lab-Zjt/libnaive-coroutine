@@ -1,4 +1,5 @@
 #include <utility/io.h>
+#include <sys/ioctl.h>
 #include "request.h"
 #include "connector.h"
 #include "connection.h"
@@ -14,7 +15,10 @@ namespace srlib {
         res += field.first + ": " + field.second + "\r\n";
       }
       res += "\r\n";
-      res += content;
+      if (header.find("Content-Length") != header.end() || header.find("Transfer-Encoding") != header.end()) {
+        res += content;
+        res += "\r\n";
+      }
       return res;
     }
     HTTPRequest HTTPRequest::Unserialize(const srlib::String &req) {
@@ -39,7 +43,10 @@ namespace srlib {
         res += field.first + ": " + field.second + "\r\n";
       }
       res += "\r\n";
-      res += content;
+      if (header.find("Content-Length") != header.end() || header.find("Transfer-Encoding") != header.end()) {
+        res += content;
+        res += "\r\n";
+      }
       return res;
     }
     HTTPResponse HTTPResponse::Unserialize(const srlib::String &req) {
@@ -104,7 +111,13 @@ namespace srlib {
       return rep.content;
     }
     net::HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req) {
-      conn.Write(req.Serialize());
+      auto s = req.Serialize();
+      Slice<char> sl(const_cast<char *>(s.data()), s.size());
+      for (long wr = 0; wr < s.size();) {
+        auto sd = conn.Write(sl(wr));
+        if (sd <= 0)break;
+        wr += sd;
+      }
       Array<char> buf(8192);
       HTTPResponse rep;
       for (long off = 0;;) {
@@ -188,6 +201,88 @@ namespace srlib {
         }
       }
       return rep;
+    }
+    net::HTTPRequest RecvHTTPRequest(Connection &conn) {
+      Array<char> buf(8192);
+      HTTPRequest req;
+      String str;
+      size_t rd_off = 0, wr_off = 0;
+      while (true) {
+        auto count = conn.Read(buf(wr_off));
+        if (count <= 0) {
+          req = HTTPRequest::Unserialize(buf(0, wr_off).ToString());
+          break;
+        }
+        wr_off += count;
+        auto header_end = buf.Find("\r\n\r\n");
+        if (header_end == size_t(-1))continue;
+        header_end += 4;
+        req = HTTPRequest::Unserialize(buf(0, header_end).ToString());
+        if (req.header.find("Content-Length") != req.header.end()) {
+          auto continue_read = req.header["Content-Length"].to_integer();
+          // Save data to response.content
+          req.content.reserve(continue_read);
+          req.content = buf(header_end, wr_off).ToString();
+          // - Read Finish
+          if (continue_read == req.content.size()) break;
+          // - Continue to read
+          for (continue_read -= req.content.size(); continue_read != 0;) {
+            count = conn.Read(buf(0));
+            if (count <= 0) {
+              break;
+            } else {
+              continue_read -= count;
+              req.content += buf(0, count).ToString();
+            }
+          }
+          break;
+        } else if (req.header["Transfer-Encoding"] == "chunked"_s) {
+          rd_off = header_end;
+          while (true) {
+            if (wr_off > rd_off) {
+              // Read Chunk Size
+              auto size_end = buf(rd_off).Find("\r\n");
+              if (size_end == 0) {
+                rd_off += 2;
+                continue;
+              } else if (size_end == size_t(-1)) {
+                break;
+              }
+              auto chunk_size = std::stoul(buf(rd_off, rd_off + size_end).ToString().const_std_string_reference(),
+                                           nullptr,
+                                           16);
+              if (chunk_size == 0)break;
+              // Move Read_Offset , +2 mean "\r\n"
+              rd_off += size_end + 2;
+              // Read chunk until end
+              while (chunk_size > wr_off - rd_off) {
+                auto readable = wr_off - rd_off;
+                req.content += buf(rd_off, rd_off + readable).ToString();
+                chunk_size -= readable;
+                rd_off = 0, wr_off = 0;
+                count = conn.Read(buf);
+                if (count <= 0)break;
+                else wr_off += count;
+              }
+              // Chunk end with "\r\n", so move Read_Offset +2
+              if (chunk_size <= wr_off - rd_off) {
+                req.content += buf(rd_off, rd_off + chunk_size).ToString();
+                rd_off += chunk_size + 2;
+              }
+            } else {
+              // Now Read_Offset == Offset, it mean buffer has been read overall. so read the fd again.
+              rd_off = 0, wr_off = 0;
+              count = conn.Read(buf);
+              if (count <= 0)break;
+              else wr_off += count;
+            }
+          }
+          break;
+        } else {
+          break;
+        }
+      }
+      return req;
     }
   }
 }
