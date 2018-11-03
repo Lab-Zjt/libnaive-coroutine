@@ -83,25 +83,25 @@ namespace srlib {
       rhs._data = nullptr;
       return *this;
     }
-    virtual ~Array() {delete[]_data;}
-    inline reference operator[](size_type i) {return _data[i];}
-    inline const_reference operator[](size_type i) const {return _data[i];}
-    inline reference At(size_type i) {
+    ~Array() {delete[]_data;}
+    reference operator[](size_type i) {return _data[i];}
+    const_reference operator[](size_type i) const {return _data[i];}
+    reference At(size_type i) {
       if (i >= _size)throw std::out_of_range("Index out of range");
       return _data[i];
     }
-    inline const_reference At(size_type i) const {
+    const_reference At(size_type i) const {
       if (i >= _size)throw std::out_of_range("Index out of range");
       return _data[i];
     }
-    inline value_type Average() const {
+    value_type Average() const {
       T sum{};
       for (int i = 0; i < _size; ++i) {
         sum += _data[i];
       }
       return sum / _size;
     }
-    inline value_type Variance() const {
+    value_type Variance() const {
       T avg = Average();
       T sum{};
       for (int i = 0; i < _size; ++i) {
@@ -109,10 +109,10 @@ namespace srlib {
       }
       return sum / _size;
     }
-    inline value_type StandardDeviation() const {
+    value_type StandardDeviation() const {
       return std::sqrt(Variance());
     }
-    inline value_type SampleStandardDeviation() const {
+    value_type SampleStandardDeviation() const {
       T avg = Average();
       T sum{};
       for (int i = 0; i < _size; ++i) {
@@ -120,7 +120,7 @@ namespace srlib {
       }
       return std::sqrt(sum / (_size - 1));
     }
-    inline value_type AClassuncertainty() const {
+    value_type AClassuncertainty() const {
       T avg = Average();
       T sum{};
       for (int i = 0; i < _size; ++i) {
@@ -128,40 +128,45 @@ namespace srlib {
       }
       return std::sqrt(sum / (_size * (_size - 1)));
     }
-    inline bool Empty() const {return _size == 0;}
-    inline void Fill(const_reference t) {for (auto &elem:*this) {elem = t;}}
-    inline void Swap(Array &rhs) {swap(_size, rhs._size), swap(_data, rhs._data);}
-    inline size_type Size() const {return _size;}
-    inline pointer Data() {return _data;}
-    inline const_pointer Data() const {return _data;}
-    inline iterator begin() {return _data;}
-    inline const_iterator begin() const {return _data;}
-    inline iterator end() {return _data + _size;}
-    inline const_iterator end() const {return _data + _size;}
-    inline Slice<T> operator()(size_type from, size_type to = std::numeric_limits<size_type>::max()) {
+    bool Empty() const {return _size == 0;}
+    void Fill(const_reference t) {for (auto &elem:*this) {elem = t;}}
+    void Swap(Array &rhs) {swap(_size, rhs._size), swap(_data, rhs._data);}
+    size_type Size() const {return _size;}
+    pointer Data() {return _data;}
+    const_pointer Data() const {return _data;}
+    iterator begin() {return _data;}
+    const_iterator begin() const {return _data;}
+    iterator end() {return _data + _size;}
+    const_iterator end() const {return _data + _size;}
+    Slice<T> operator()(size_type from, size_type to = std::numeric_limits<size_type>::max()) {
       if (from >= _size)from = _size;
       if (to >= _size)to = _size;
       return Slice<T>(_data + from, to - from);
     }
-    inline size_t Find(const char *)= delete;
-    inline String ToString() = delete;
-    inline String ToStringTrunc()= delete;
+    Array SubArray(size_type from, size_type to = std::numeric_limits<size_type>::max()) {
+      return Array(_data + from, to - from);
+    }
+    size_t Find(const char *sub) {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      auto pos = memmem(Data(), Size(), sub, strlen(sub));
+      if (pos == nullptr)return size_t(-1);
+      return (char *) pos - Data();
+    }
+    size_type Find(const void *sub, size_type size) const {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      auto pos = memmem(Data(), Size(), sub, size);
+      if (pos == nullptr)return size_t(-1);
+      return (pointer) pos - Data();
+    }
+    String ToString() {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      return String(_data, _size);
+    }
+    String ToStringTrunc() {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      return String(_data);
+    }
   };
-  
-  template<>
-  inline size_t Array<char>::Find(const char *sub) {
-    auto pos = memmem(Data(), Size(), sub, strlen(sub));
-    if (pos == nullptr)return size_t(-1);
-    return (char *) pos - Data();
-  }
-  template<>
-  inline String Array<char>::ToString() {return String(_data, _size);}
-  template<>
-  inline String Array<Byte>::ToString() {return String((char *) _data, _size);}
-  template<>
-  inline String Array<char>::ToStringTrunc() {return String(_data);}
-  template<>
-  inline String Array<Byte>::ToStringTrunc() {return String((char *) _data);}
   
   /// Slice is a slice from a Array.
   /// Slice can be created by Array(from,to).
@@ -170,15 +175,57 @@ namespace srlib {
   /// But when corresponding Array destroyed, Slice will be invalid.
   /// Use ToArray() can create a new Array from Slice.
   template<typename T>
-  class Slice : public Array<T> {
+  class Slice {
   public:
-    Slice() = default;
-    Slice(T *ptr, size_t size) {
-      this->_data = ptr, this->_size = size;
+    typedef T value_type;
+    typedef size_t size_type;
+    typedef value_type *pointer;
+    typedef const pointer const_pointer;
+    typedef value_type *iterator;
+    typedef const iterator const_iterator;
+    typedef value_type &reference;
+    typedef const reference const_reference;
+  private:
+    pointer _ptr;
+    size_type _size;
+  public:
+    Slice() = delete;
+    Slice(pointer ptr, size_type size) : _ptr(ptr), _size(size) {}
+    Array<T> ToArray() {return Array<T>(_ptr, _size);}
+    Slice operator()(size_type from, size_type to = std::numeric_limits<size_type>::max()) {
+      if (from >= _size)from = _size;
+      if (to >= _size)to = _size;
+      return Slice(_ptr + from, to - from);
     }
-    ~Slice() {this->_data = nullptr;}
-    Array<T> ToArray() {
-      return Array<T>(this->_data, this->_size);
+    reference operator[](size_t size) {return _ptr[size];}
+    const_reference operator[](size_type size) const {return _ptr[size];}
+    iterator begin() {return _ptr;}
+    const_iterator begin() const {return _ptr;}
+    iterator end() {return _ptr + _size;}
+    const_iterator end() const {return _ptr + _size;}
+    size_type Size() const {return _size;}
+    pointer Data() {return _ptr;}
+    const_pointer Data() const {return _ptr;}
+    bool Empty() const {return _size == 0;}
+    String ToString() {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      return String(_ptr, _size);
+    }
+    String ToStringTrunc() {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      return String(_ptr);
+    }
+    size_type Find(const char *sub) const {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      auto pos = memmem(Data(), Size(), sub, strlen(sub));
+      if (pos == nullptr)return size_t(-1);
+      return (pointer) pos - Data();
+    }
+    size_type Find(const void *sub, size_type size) const {
+      static_assert(std::is_same<T, char>::value || std::is_same<T, uint8_t>::value);
+      auto pos = memmem(Data(), Size(), sub, size);
+      if (pos == nullptr)return size_t(-1);
+      return (pointer) pos - Data();
     }
   };
 };
