@@ -89,6 +89,7 @@ namespace srlib {
     String httpsGet(TlsConnection &conn, const String &url, const std::vector<String> &append = {});
     HTTPResponse SendHTTPRequest(Connection &conn, const HTTPRequest &req);
     HTTPRequest RecvHTTPRequest(Connection &conn);
+    std::pair<String, String> splitUrl(const String &url);
   }
 }
 

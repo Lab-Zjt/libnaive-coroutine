@@ -81,10 +81,15 @@ namespace srlib {
       conn->Close();
       return res;
     }
-    String httpsGet(const String &url, const std::vector<String> &append) {
+    std::pair<String, String> splitUrl(const String &url) {
       auto partition = url.find('/');
-      auto domain = partition == std::string::npos ? url : url(0, partition);
-      auto filename = partition == std::string::npos ? "/" : url(partition, url.size());
+      if (partition == std::string::npos) {
+        return std::make_pair(url, "/");
+      }
+      return std::make_pair(url(0, partition), url(partition, url.size()));
+    };
+    String httpsGet(const String &url, const std::vector<String> &append) {
+      auto[domain, filename] = splitUrl(url);
       auto addr = ParseIp(domain, "443");
       auto conn = TlsConnection(addr);
       net::HTTPRequest req{};

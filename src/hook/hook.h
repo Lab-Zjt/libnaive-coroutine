@@ -2,7 +2,6 @@
 #define SORANET_HOOK_H
 
 #include <zconf.h>
-#include <malloc.h>
 
 struct sockaddr;
 
@@ -25,7 +24,6 @@ extern send_t origin_send;
 extern usleep_t origin_usleep;
 extern sleep_t origin_sleep;
 extern nanosleep_t origin_nanosleep;
-void hook_all();
 };
 
 #endif
