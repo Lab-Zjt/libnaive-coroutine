@@ -7,7 +7,7 @@ namespace srlib {
   namespace net {
     Address ParseIp(const String &url, const String &service) {
       ::addrinfo hints{};
-      ::addrinfo *res;
+      ::addrinfo *res = nullptr;
       hints.ai_flags = 0;
       hints.ai_protocol = 0;
       hints.ai_addrlen = sizeof(sockaddr);

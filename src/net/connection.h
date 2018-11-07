@@ -24,7 +24,7 @@ namespace srlib {
       Connection &operator=(Connection &&old)noexcept;
       inline int Connect();
       inline bool IsConnected();
-      inline int Disconnect();
+      int Disconnect();
       inline ssize_t Send(const String &msg, int flag = 0);
       String Recv(size_t size, int flag = 0);
       inline Address &GetAddress();

@@ -5,25 +5,15 @@
 #include <fcntl.h>
 #include <utility/io.h>
 #include <coroutine/stack_size.h>
+#include <net/parse.h>
+#include "net/address.h"
 
 using namespace srlib;
 using namespace std;
 int counter = 0;
 std::mutex mut;
 Coro_Main(argc, argv) {
-  vector<vector<String>> res;
-  bool flag = false;
-  go<16KB>([&res, &flag]() {
-    auto str = net::httpsGet("www.bilibili.com");
-    flag = true;
-  });
-  auto resp = net::httpsGet("www.baidu.com");
-  cout << resp << endl;
-  while (!flag) {}
-  for (auto &line:res) {
-    for (auto &str:line) {
-      println(str);
-    }
-  }
+  auto conn = net::TlsConnection(net::ParseIp(String(argv[1]), "https"));
+  println(net::SendHTTPRequest(conn, net::HTTPRequest{}.AutoFill().Page("/").Header("Host", argv[1])).Serialize());
   return 0;
 }

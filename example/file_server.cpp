@@ -13,7 +13,12 @@ Coro_Main(argc, argv) {
   auto listener = net::Listen(net::Address("0.0.0.0", 10101));
   auto index_page = ReadRegularFile("index.html").substitute("{{.Title}}", title);
   auto upload_page = ReadRegularFile("file.html").substitute("{{.Title}}", title);
-  auto success_page = ReadRegularFile("result.html");
+  auto success_page = ReadRegularFile("result.html").substitute("{{.Title}}", "Success");
+  auto directory_root = ".";
+  Directory d(directory_root);
+  auto walk_func = [](FileInfo &&info, std::vector<String> &vec) {
+    vec.push_back(info.Name());
+  };
   while (true) {
     auto conn = listener->Accept();
     go<32KB>([conn, &upload_page, &index_page, success_page]() mutable {
@@ -30,6 +35,9 @@ Coro_Main(argc, argv) {
              .Header("Content-Length", itoa(upload_page.size()))
              .Header("Content-Type", "text/html")
              .Content(upload_page);
+        } else if (req.page == "/file") {
+          std::vector<String> vec;
+          d.Walk(walk_func, vec);
         } else {
           rep.StatusCode("404")
              .ReasonPhrase("Not Found")
