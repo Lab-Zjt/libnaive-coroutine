@@ -22,12 +22,14 @@ namespace srlib {
       Connection &operator=(const Connection &rhs) = delete;
       Connection(Connection &&old)noexcept;
       Connection &operator=(Connection &&old)noexcept;
-      inline int Connect();
-      inline bool IsConnected();
+      int Connect();
+      bool IsConnected();
       int Disconnect();
-      inline ssize_t Send(const String &msg, int flag = 0);
+      ssize_t Send(const String &msg, int flag = 0);
       String Recv(size_t size, int flag = 0);
-      inline Address &GetAddress();
+      void SetSendTimeout(const struct timeval &timeout);
+      void SetRecvTimeout(const struct timeval &timeout);
+      Address &GetAddress();
     };
     
     class TcpConnection : public Connection {

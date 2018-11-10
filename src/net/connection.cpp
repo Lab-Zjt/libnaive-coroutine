@@ -20,7 +20,6 @@ namespace srlib {
       } else {
         _connected = false;
       }
-      fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
     }
     Connection::~Connection() {
       delete _addr;
@@ -67,6 +66,12 @@ namespace srlib {
       String res(buf, count);
       delete buf;
       return res;
+    }
+    void Connection::SetSendTimeout(const struct timeval &timeout) {
+      if (setsockopt(fd(), SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeval)) < 0)perror("setsockopt");
+    }
+    void Connection::SetRecvTimeout(const struct timeval &timeout) {
+      if (setsockopt(fd(), SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeval)) < 0)perror("setsockopt");
     }
     Address &Connection::GetAddress() {return *_addr;}
     TcpConnection::TcpConnection(const srlib::net::Address &addr, bool connect) : Connection(addr,
